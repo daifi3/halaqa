@@ -1,0 +1,10 @@
+target/
+data/
+recordings/
+livekit/
+docker-compose.yml
+run-local.ps1
+.vscode/
+.classpath
+.project
+.settings/

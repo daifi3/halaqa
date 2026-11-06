@@ -1,56 +1,63 @@
-# Welcome to your Expo app 👋
+# Halaqa — online classrooms
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Teachers reserve rooms and invite students; everyone meets in live video with a shared whiteboard, and lessons can be recorded and replayed.
 
-## Get started
-
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+halaqa/
+├─ src/                    Expo app (React Native, Expo Router, SDK 58)
+│  ├─ app/                 screens (file-based routes)
+│  ├─ components/          UI kit, room card, tab bar, classroom/*
+│  ├─ lib/                 api (http + mock), whiteboard protocol, formatting
+│  ├─ store/               session (zustand, persisted)
+│  └─ theme/               colours, type, spacing, springs
+└─ backend/                Spring Boot 3 API + LiveKit docker stack
 ```
 
-This command will move the starter code to the **example** directory and create a blank **src/app** directory where you can start developing.
+## 1. Try the app in demo mode (no backend)
 
-### Other setup steps
+```bash
+npm install
+cp .env.example .env            # EXPO_PUBLIC_USE_MOCK=true
+npx expo run:android            # or: npx expo run:ios  (needs Xcode)
+```
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+> Video calls use native WebRTC, so the app needs a **development build**; it will not run inside Expo Go.
+> No Android Studio? Build in the cloud: `npx eas-cli@latest build --profile development --platform android`, install the APK, then `npx expo start`.
 
-## Learn more
+Demo mode gives you seeded classes, fake classmates who "speak", a working whiteboard, and sample recordings. Join code for students: **OOP24K**.
 
-To learn more about developing your project with Expo, look at the following resources:
+## 2. Run the real stack
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```bash
+cd backend
+docker compose up -d            # LiveKit (video) + Egress (recording) + Redis
+mvn spring-boot:run             # Java 21
+```
 
-## Join the community
+Then in `.env`:
 
-Join our community of developers creating universal apps.
+```
+EXPO_PUBLIC_USE_MOCK=false
+EXPO_PUBLIC_API_URL=http://<your-computer-LAN-IP>:8080/api
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+and set `LIVEKIT_WS_URL=ws://<LAN-IP>:7880`, `PUBLIC_BASE_URL=http://<LAN-IP>:8080` for the backend, plus `rtc.node_ip` in `backend/livekit/livekit.yaml`, so real phones can reach everything.
+
+## How it works
+
+| Feature | Implementation |
+|---|---|
+| Roles | `teacher` / `student`, chosen on the welcome screen; enforced by the API |
+| Reserve room | `POST /api/rooms` → 6-char join code + email invites |
+| Join | invited email, or `POST /api/rooms/join {code}` |
+| Video | LiveKit — backend issues a token (`POST /api/rooms/{id}/token`) with `{role}` metadata |
+| Whiteboard | Skia canvas; strokes normalised to a 4:3 board and sent over LiveKit's reliable data channel (topic `wb`). Late joiners request a snapshot from the teacher. Teacher can let students draw. |
+| Recording | Server-side LiveKit **Egress** (room-composite grid → MP4). Every participant sees the REC badge via `RecordingStatusChanged`. The `egress_ended` webhook marks the recording ready. |
+| Replay | `expo-video` player with native controls and PiP |
+
+## Before production
+
+- Sign-up/log-in now use real passwords (BCrypt-hashed, `POST /api/auth/sign-up` + `/sign-in`) instead of the old passwordless demo — still worth moving to Spring Security + JWT / OAuth before production.
+- Move recordings to S3 / R2 and return signed URLs.
+- Send invitation emails (TODO in `RoomController.create`).
+- Use PostgreSQL instead of H2; deploy LiveKit on a server with a public IP or use LiveKit Cloud.

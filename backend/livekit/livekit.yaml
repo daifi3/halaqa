@@ -1,0 +1,20 @@
+# LiveKit server — local development config
+port: 7880
+rtc:
+  tcp_port: 7881
+  port_range_start: 40000
+  port_range_end: 40100
+  use_external_ip: false
+  # Set this to your computer's LAN IP (e.g. 192.168.1.20) so phones on the same Wi-Fi can connect.
+  node_ip: 192.168.1.65
+redis:
+  address: redis:6379
+keys:
+  # Must match LIVEKIT_API_KEY / LIVEKIT_API_SECRET in the Spring Boot app (secret ≥ 32 chars)
+  devkey: secret_change_me_to_at_least_32_chars
+webhook:
+  api_key: devkey
+  urls:
+    - http://192.168.1.65:3000/api/livekit/webhook
+logging:
+  level: info

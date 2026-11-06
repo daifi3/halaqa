@@ -1,0 +1,7 @@
+# LiveKit Egress — records rooms to MP4
+log_level: info
+api_key: devkey
+api_secret: secret_change_me_to_at_least_32_chars
+ws_url: ws://livekit:7880
+redis:
+  address: redis:6379

@@ -3,5 +3,11 @@
     "source.fixAll": "explicit",
     "source.organizeImports": "explicit",
     "source.sortMembers": "explicit"
-  }
+  },
+  // The backend targets Java 21. Without this the Java extension picked up a broken
+  // JDK install and wrote uncompilable classes into backend/target/classes.
+  "java.configuration.runtimes": [
+    { "name": "JavaSE-21", "path": "C:\\Users\\HP\\tools\\jdk-21.0.13+9", "default": true }
+  ],
+  "java.jdt.ls.java.home": "C:\\Users\\HP\\tools\\jdk-21.0.13+9"
 }

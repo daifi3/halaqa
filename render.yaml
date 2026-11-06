@@ -1,0 +1,45 @@
+# Render Blueprint: the Halaqa backend and its Postgres database.
+# Render → New → Blueprint → pick this repo. It asks for the LiveKit values marked `sync: false`.
+# Video calls run on LiveKit Cloud (Render can't open the UDP ports LiveKit needs).
+
+services:
+  - type: web
+    name: halaqa-api
+    runtime: docker
+    plan: free
+    region: frankfurt
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    envVars:
+      # Render routes traffic to the container; listen on every interface.
+      - key: SERVER_ADDRESS
+        value: 0.0.0.0
+      - key: DB_HOST
+        fromDatabase: { name: halaqa-db, property: host }
+      - key: DB_PORT
+        fromDatabase: { name: halaqa-db, property: port }
+      - key: DB_NAME
+        fromDatabase: { name: halaqa-db, property: database }
+      - key: DB_USER
+        fromDatabase: { name: halaqa-db, property: user }
+      - key: DB_PASSWORD
+        fromDatabase: { name: halaqa-db, property: password }
+      # From your LiveKit Cloud project → Settings → Keys.
+      - key: LIVEKIT_WS_URL # wss://<project>.livekit.cloud
+        sync: false
+      - key: LIVEKIT_API_URL # https://<project>.livekit.cloud
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      # LiveKit Cloud can only record to cloud storage, which isn't set up.
+      - key: RECORDING_ENABLED
+        value: "false"
+
+databases:
+  - name: halaqa-db
+    plan: free
+    region: frankfurt
+    databaseName: halaqa
+    user: halaqa

@@ -1,0 +1,9 @@
+expo.modules.examlock.exam-lock-pngs-0 D:\halaqa\halaqa\modules\exam-lock\android\build\generated\res\pngs\debug
+expo.modules.examlock.exam-lock-updated_navigation_xml-1 D:\halaqa\halaqa\modules\exam-lock\android\build\generated\updated_navigation_xml\debug
+expo.modules.examlock.exam-lock-mergeDebugResources-2 D:\halaqa\halaqa\modules\exam-lock\android\build\intermediates\incremental\debug\mergeDebugResources\merged.dir
+expo.modules.examlock.exam-lock-mergeDebugResources-3 D:\halaqa\halaqa\modules\exam-lock\android\build\intermediates\incremental\debug\mergeDebugResources\stripped.dir
+expo.modules.examlock.exam-lock-debug-4 D:\halaqa\halaqa\modules\exam-lock\android\build\intermediates\merged_res\debug\mergeDebugResources
+expo.modules.examlock.exam-lock-debug-5 D:\halaqa\halaqa\modules\exam-lock\android\build\intermediates\packaged_res\debug\packageDebugResources
+expo.modules.examlock.exam-lock-debug-6 D:\halaqa\halaqa\modules\exam-lock\android\src\debug\res
+expo.modules.examlock.exam-lock-main-7 D:\halaqa\halaqa\modules\exam-lock\android\src\main\res
+gradleHome-0 C:\Users\HP\.gradle

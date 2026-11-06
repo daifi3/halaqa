@@ -1,0 +1,54 @@
+server:
+  # Listens on the network address only, so phones on the same Wi-Fi can reach it (not localhost).
+  address: ${SERVER_ADDRESS:192.168.1.65}
+  # Render sets PORT; locally run-local.ps1 sets SERVER_PORT.
+  port: ${PORT:3000}
+
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:halaqa}
+    username: ${DB_USER:postgres}
+    password: "${DB_PASSWORD:postgres}"
+  jpa:
+    hibernate:
+      # Flyway owns the schema (db/migration); Hibernate only checks it matches the entities.
+      ddl-auto: validate
+    open-in-view: false
+  web:
+    resources:
+      # Egress writes MP4 files into ./recordings — served at /recordings/<file>
+      static-locations: file:./recordings/
+
+  mvc:
+    static-path-pattern: /recordings/**
+
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+halaqa:
+  # Address the phone uses to reach this backend (used to build recording URLs).
+  public-base-url: ${PUBLIC_BASE_URL:${RENDER_EXTERNAL_URL:http://192.168.1.65:3000}}
+  storage:
+    avatar-dir: ${AVATAR_DIR:./data/avatars}
+    vault-dir: ${VAULT_DIR:./data/vault}
+    homework-dir: ${HOMEWORK_DIR:./data/homework}
+  livekit:
+    # URL the *app* connects to (websocket)
+    ws-url: ${LIVEKIT_WS_URL:ws://192.168.1.65:7880}
+    # URL the *backend* uses for server APIs (egress)
+    api-url: ${LIVEKIT_API_URL:http://localhost:7880}
+    api-key: ${LIVEKIT_API_KEY:devkey}
+    api-secret: ${LIVEKIT_API_SECRET:secret_change_me_to_at_least_32_chars}
+    # Path *inside the egress container* where files are written
+    egress-output-dir: /out
+    # Off on Render: LiveKit Cloud can only record to cloud storage, which isn't set up yet.
+    recording-enabled: ${RECORDING_ENABLED:true}
+
+springdoc:
+  swagger-ui:
+    # Keep the pasted token across page reloads, and list things in a predictable order.
+    persist-authorization: true
+    tags-sorter: alpha
+    operations-sorter: alpha
