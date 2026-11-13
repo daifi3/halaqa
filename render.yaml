@@ -37,6 +37,24 @@ services:
       - key: RECORDING_ENABLED
         value: "false"
 
+  # The web app (Vite + React). VITE_* values are baked in at build time.
+  - type: web
+    name: halaqa-web
+    runtime: static
+    rootDir: web
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      - key: VITE_USE_MOCK
+        value: "false"
+      - key: VITE_API_URL
+        value: https://halaqa-api.onrender.com/api
+    # Single-page app: let React Router handle every path.
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
 databases:
   - name: halaqa-db
     plan: free
