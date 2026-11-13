@@ -10,6 +10,8 @@ export interface ActiveShare {
   isLocal: boolean;
   /** The shared screen; absent for your own share (no point mirroring it) and in mock mode. */
   video?: ReactNode;
+  /** The shared picture's width / height, when known: lines drawings up with the video. */
+  aspect?: number | null;
 }
 
 /** The platform side of screen sharing, supplied by the live or demo stage. */

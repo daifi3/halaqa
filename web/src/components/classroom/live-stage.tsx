@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 import { CHAT_TOPIC, decodeChat, encodeChat, type ChatTransport } from '@/lib/chat';
 import { alert } from '@/lib/dialog';
 import { decodeReaction, encodeReaction, REACTION_TOPIC, reactionId, type ReactionTransport } from '@/lib/reactions';
+import { decodeInk, encodeInk, INK_TOPIC, type InkTransport } from '@/lib/screen-ink';
 import { decodeScreen, encodeScreen, SCREEN_TOPIC, type ScreenSignal } from '@/lib/screen-share';
 import type { Room } from '@/lib/types';
 import { decodeWb, encodeWb, WB_TOPIC, type WbMessage, type WbTransport } from '@/lib/whiteboard';
@@ -130,6 +131,16 @@ export function LiveStage({ room, isTeacher, onLeave }: { room: Room; isTeacher:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [lk, localParticipant]);
 
+  // Drawings on the shared screen, signed with the participant LiveKit says sent them.
+  const ink = useMemo<InkTransport>(() => ({
+    send: topic(INK_TOPIC, encodeInk),
+    subscribe: (handler) => listen(INK_TOPIC, (payload, p) => {
+      const chunk = p && decodeInk(payload);
+      if (chunk) handler(chunk, { id: p.identity, name: p.name || p.identity });
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [lk, localParticipant]);
+
   // Show the teacher's screen when several people share, otherwise whoever is sharing.
   const shown = screenTracks.find((t) => isTrackReference(t) && roleOf(t.participant) === 'teacher')
     ?? screenTracks.find((t) => isTrackReference(t));
@@ -142,7 +153,8 @@ export function LiveStage({ room, isTeacher, onLeave }: { room: Room; isTeacher:
       ownerId: shown.participant.identity,
       name: shown.participant.name || shown.participant.identity,
       isLocal: shown.participant.isLocal,
-      video: shown.participant.isLocal ? undefined : <VideoTrack trackRef={shown} style={{ ...fill, objectFit: 'contain' }} />,
+      // Your own share too, as a preview: it's where you see what classmates draw on your screen.
+      video: <VideoTrack trackRef={shown} style={{ ...fill, objectFit: 'contain' }} />,
     } : null,
   };
 
@@ -220,6 +232,7 @@ export function LiveStage({ room, isTeacher, onLeave }: { room: Room; isTeacher:
       reactions={reactions}
       screen={screen}
       screenSignal={screenSignal}
+      ink={ink}
       myId={localParticipant.identity}
       me={{ name: localParticipant.name || 'You' }}
       canFlip={cameras > 1}

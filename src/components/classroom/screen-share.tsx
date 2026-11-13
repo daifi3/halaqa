@@ -1,11 +1,83 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { Canvas, Path } from '@shopify/react-native-skia';
+import { useState } from 'react';
 import { Switch, StyleSheet, View } from 'react-native';
+import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Animated, { FadeIn, FadeInUp, FadeOut, LinearTransition } from 'react-native-reanimated';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
+import { containRect, INK_HOLD_MS } from '@/lib/screen-ink';
 import type { Peer } from '@/lib/screen-share';
 import { colors, fonts, radius } from '@/theme';
+import { inkOpacity, type InkStroke, type useScreenInk } from './use-screen-ink';
 import type { ActiveShare, StudentNotice } from './use-screen-share';
+
+/* ---------- Drawings on the shared screen ---------- */
+
+export type ScreenInk = ReturnType<typeof useScreenInk>;
+
+const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+
+/** SVG path data in pixels; a single tap gets a twin point so it shows as a dot. */
+function inkPath(points: number[], w: number, h: number) {
+  const pts = points.length === 2 ? [...points, points[0]! + 0.0001, points[1]!] : points;
+  let d = '';
+  for (let i = 0; i < pts.length; i += 2) d += `${i ? 'L' : 'M'}${(pts[i]! * w).toFixed(1)} ${(pts[i + 1]! * h).toFixed(1)}`;
+  return d;
+}
+
+/**
+ * Strokes over the shared picture, lined up with where the video is actually
+ * drawn ("contain" leaves bars around it), so a circle lands on the same spot
+ * for everyone. `aspect` is the shared picture's width / height (unknown = the
+ * whole layer). Takes touches only while `drawing` is on.
+ */
+export function InkLayer({ ink, drawing = false, aspect }: { ink: ScreenInk; drawing?: boolean; aspect?: number | null }) {
+  const [box, setBox] = useState({ w: 0, h: 0 });
+  const rect = containRect(box.w, box.h, aspect);
+
+  const pan = usePanGesture({
+    runOnJS: true,
+    enabled: drawing && rect.w > 0,
+    minDistance: 0,
+    maxPointers: 1,
+    onBegin: (e) => ink.begin(clamp01(e.x / rect.w), clamp01(e.y / rect.h)),
+    onUpdate: (e) => ink.move(clamp01(e.x / rect.w), clamp01(e.y / rect.h)),
+    onFinalize: () => ink.end(),
+  });
+
+  // One name tag per person (not you), at the start of their latest stroke.
+  const tags = new Map<string, InkStroke>();
+  for (const s of ink.strokes) if (!s.mine) tags.set(s.author, s);
+
+  return (
+    <View
+      style={StyleSheet.absoluteFill}
+      pointerEvents={drawing ? 'box-none' : 'none'}
+      onLayout={(e) => setBox({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
+    >
+      {rect.w > 0 && (
+        <GestureDetector gesture={pan}>
+          <View style={{ position: 'absolute', left: rect.x, top: rect.y, width: rect.w, height: rect.h }}>
+            <Canvas style={StyleSheet.absoluteFill} pointerEvents="none">
+              {ink.strokes.map((s) => (
+                <Path key={s.key} path={inkPath(s.points, rect.w, rect.h)} color={s.color} opacity={inkOpacity(s, ink.now)}
+                  style="stroke" strokeWidth={4} strokeCap="round" strokeJoin="round" />
+              ))}
+            </Canvas>
+            {[...tags.values()].map((s) => (
+              <View key={s.author} pointerEvents="none" style={[styles.inkTag, {
+                left: s.points[0]! * rect.w, top: s.points[1]! * rect.h, backgroundColor: s.color, opacity: inkOpacity(s, ink.now),
+              }]}>
+                <Text variant="small" color="#16171C" style={{ fontSize: 11, fontFamily: fonts.bold }} numberOfLines={1}>{s.author}</Text>
+              </View>
+            ))}
+          </View>
+        </GestureDetector>
+      )}
+    </View>
+  );
+}
 
 /* ---------- The shared screen itself ---------- */
 
@@ -28,11 +100,17 @@ function DemoScreen({ name }: { name: string }) {
   );
 }
 
-export function ScreenView({ share, onStop }: {
+export function ScreenView({ share, onStop, ink, drawing, onToggleDraw }: {
   share: ActiveShare;
   /** Shown to the sharer, and to the teacher for a student's share. */
   onStop?: () => void;
+  ink: ScreenInk;
+  /** Your pen is on: dragging over the screen draws on it for everyone. */
+  drawing: boolean;
+  onToggleDraw: () => void;
 }) {
+  // Your own phone's share is the phone screen itself: the stage shows drawings over the whole app instead.
+  const canDraw = !share.isLocal;
   return (
     <Animated.View entering={FadeIn.duration(250)} exiting={FadeOut.duration(150)} style={styles.screen}>
       {share.isLocal ? (
@@ -51,11 +129,20 @@ export function ScreenView({ share, onStop }: {
         <DemoScreen name={share.name} />
       )}
 
-      <View style={styles.screenBar}>
+      {canDraw && <InkLayer ink={ink} drawing={drawing} aspect={share.aspect} />}
+
+      <View style={styles.screenBar} pointerEvents="box-none">
         <View style={styles.screenLabel}>
           <Ionicons name="desktop-outline" size={13} color={colors.stageText} />
           <Text variant="small" color={colors.stageText} numberOfLines={1}>{share.isLocal ? 'You' : share.name} · sharing</Text>
         </View>
+        {canDraw && (
+          <PressableScale scaleTo={0.92} onPress={onToggleDraw} style={[styles.drawBtn, drawing && { backgroundColor: colors.primary }]}
+            accessibilityRole="button" accessibilityState={{ selected: drawing }} accessibilityLabel={drawing ? 'Stop drawing' : 'Draw on the screen'}>
+            <Ionicons name={drawing ? 'brush' : 'brush-outline'} size={13} color="#fff" />
+            <Text variant="small" color="#fff">{drawing ? 'Drawing' : 'Draw'}</Text>
+          </PressableScale>
+        )}
         {onStop && (
           <PressableScale scaleTo={0.92} onPress={onStop} style={styles.stopBtn}>
             <Ionicons name="stop" size={12} color="#fff" />
@@ -63,6 +150,12 @@ export function ScreenView({ share, onStop }: {
           </PressableScale>
         )}
       </View>
+
+      {drawing && (
+        <View style={styles.drawHint} pointerEvents="none">
+          <Text variant="small" color={colors.stageText} numberOfLines={1}>Everyone sees your drawing · it fades after {INK_HOLD_MS / 1000} s</Text>
+        </View>
+      )}
     </Animated.View>
   );
 }
@@ -175,6 +268,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(0,0,0,0.6)',
     paddingHorizontal: 10, paddingVertical: 5, borderRadius: radius.pill, flexShrink: 1, marginRight: 'auto',
   },
+  drawBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.pill },
+  drawHint: {
+    position: 'absolute', bottom: 10, alignSelf: 'center', maxWidth: '92%',
+    backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.pill,
+  },
+  inkTag: { position: 'absolute', marginLeft: -6, marginTop: -30, paddingHorizontal: 7, paddingVertical: 2, borderRadius: radius.pill, maxWidth: 160 },
   stopBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.danger, paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.pill },
   localShare: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, padding: 24, backgroundColor: colors.stageCard },
   localIcon: { width: 64, height: 64, borderRadius: 22, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },

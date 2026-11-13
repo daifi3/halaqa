@@ -1,9 +1,12 @@
+import { useEffect, useRef, useState } from 'react';
 import { Icon, type IconName } from '@/components/ui/icon';
 import { Switch } from '@/components/ui/misc';
 import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
+import { containRect, INK_HOLD_MS } from '@/lib/screen-ink';
 import type { Peer } from '@/lib/screen-share';
 import { colors, radius } from '@/theme';
+import { inkOpacity, type InkStroke, type useScreenInk } from './use-screen-ink';
 import type { ActiveShare, StudentNotice } from './use-screen-share';
 
 /* ---------- The shared screen itself ---------- */
@@ -29,14 +32,113 @@ function DemoScreen({ name }: { name: string }) {
 
 const pill: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: radius.pill };
 
-export function ScreenView({ share, onStop }: {
+export type ScreenInk = ReturnType<typeof useScreenInk>;
+
+const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+
+/** "x,y x,y …" for an SVG polyline; a single tap gets a twin point so it shows as a dot. */
+function polyline(points: number[]) {
+  const pts = points.length === 2 ? [...points, points[0]! + 0.0001, points[1]!] : points;
+  let d = '';
+  for (let i = 0; i < pts.length; i += 2) d += `${i ? ' ' : ''}${pts[i]},${pts[i + 1]}`;
+  return d;
+}
+
+/**
+ * Strokes over the shared picture. Lines up with the video where it's actually
+ * drawn ("contain" leaves bars around it), so a circle lands on the same spot
+ * for everyone. Takes pointer input only while `drawing` is on.
+ */
+function InkLayer({ ink, drawing }: { ink: ScreenInk; drawing: boolean }) {
+  const box = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ w: 0, h: 0 });
+  const [aspect, setAspect] = useState<number | null>(null);
+  const pressed = useRef(false);
+
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setSize({ w: el.clientWidth, h: el.clientHeight }));
+    ro.observe(el);
+    // The shared screen's real proportions, from the <video> next to this layer (none in mock mode).
+    const video = el.parentElement?.querySelector('video');
+    const read = () => { if (video?.videoWidth) setAspect(video.videoWidth / video.videoHeight); };
+    read();
+    video?.addEventListener('loadedmetadata', read);
+    video?.addEventListener('resize', read);
+    return () => {
+      ro.disconnect();
+      video?.removeEventListener('loadedmetadata', read);
+      video?.removeEventListener('resize', read);
+    };
+  }, []);
+
+  const rect = containRect(size.w, size.h, aspect);
+  const at = (e: React.PointerEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    return [clamp01((e.clientX - r.left) / r.width), clamp01((e.clientY - r.top) / r.height)] as const;
+  };
+  const release = () => {
+    if (!pressed.current) return;
+    pressed.current = false;
+    ink.end();
+  };
+
+  // One name tag per person (not you), at the start of their latest stroke.
+  const tags = new Map<string, InkStroke>();
+  for (const s of ink.strokes) if (!s.mine) tags.set(s.author, s);
+
+  return (
+    <div ref={box} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+      <div
+        style={{
+          position: 'absolute', left: rect.x, top: rect.y, width: rect.w, height: rect.h,
+          pointerEvents: drawing ? 'auto' : 'none', touchAction: drawing ? 'none' : undefined, cursor: drawing ? 'crosshair' : undefined,
+        }}
+        onPointerDown={(e) => {
+          if (!drawing || e.button > 0) return;
+          e.currentTarget.setPointerCapture(e.pointerId);
+          pressed.current = true;
+          ink.begin(...at(e));
+        }}
+        onPointerMove={(e) => { if (pressed.current) ink.move(...at(e)); }}
+        onPointerUp={release}
+        onPointerCancel={release}
+      >
+        <svg viewBox="0 0 1 1" preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', overflow: 'visible' }}>
+          {ink.strokes.map((s) => (
+            <polyline key={s.key} points={polyline(s.points)} fill="none" stroke={s.color} strokeWidth={4}
+              strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" opacity={inkOpacity(s, ink.now)}
+              style={{ filter: 'drop-shadow(0 0 1.5px rgba(0,0,0,0.55))' }} />
+          ))}
+        </svg>
+        {[...tags.values()].map((s) => (
+          <span key={s.author} style={{
+            position: 'absolute', left: `${s.points[0]! * 100}%`, top: `${s.points[1]! * 100}%`, transform: 'translate(-50%, calc(-100% - 10px))',
+            backgroundColor: s.color, color: '#16171C', fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: radius.pill,
+            whiteSpace: 'nowrap', opacity: inkOpacity(s, ink.now), pointerEvents: 'none',
+          }}>{s.author}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function ScreenView({ share, onStop, ink, drawing, onToggleDraw }: {
   share: ActiveShare;
   /** Shown to the sharer, and to the teacher for a student's share. */
   onStop?: () => void;
+  ink: ScreenInk;
+  /** Your pen is on: dragging over the screen draws on it for everyone. */
+  drawing: boolean;
+  onToggleDraw: () => void;
 }) {
   return (
     <div className="a-fade" style={{ position: 'relative', flex: 1, borderRadius: radius.lg, overflow: 'hidden', backgroundColor: '#000', minHeight: 0 }}>
-      {share.isLocal ? (
+      {share.video ? (
+        // Your own share shows as a live preview too, so you can see what others draw on it.
+        <div style={{ position: 'absolute', inset: 0 }}>{share.video}</div>
+      ) : share.isLocal ? (
         <div className="v center" style={{ position: 'absolute', inset: 0, gap: 10, padding: 24, backgroundColor: colors.stageCard }}>
           <span className="h center" style={{ width: 64, height: 64, borderRadius: 22, backgroundColor: colors.primary, marginBottom: 6 }}>
             <Icon name="desktop" size={28} color="#fff" />
@@ -46,24 +148,35 @@ export function ScreenView({ share, onStop }: {
             Everyone in class sees what you share, including notifications.
           </Text>
         </div>
-      ) : share.video ? (
-        <div style={{ position: 'absolute', inset: 0 }}>{share.video}</div>
       ) : (
         <DemoScreen name={share.name} />
       )}
 
-      <div className="h" style={{ position: 'absolute', left: 10, right: 10, top: 10, gap: 8 }}>
+      <InkLayer ink={ink} drawing={drawing} />
+
+      <div className="h" style={{ position: 'absolute', left: 10, right: 10, top: 10, gap: 8, pointerEvents: 'none' }}>
         <span style={{ ...pill, padding: '5px 10px', backgroundColor: 'rgba(0,0,0,0.6)', marginRight: 'auto', minWidth: 0 }}>
           <Icon name="desktop-outline" size={13} color={colors.stageText} />
           <Text variant="small" color={colors.stageText} lines={1}>{share.isLocal ? 'You' : share.name} · sharing</Text>
         </span>
+        <Pressable scaleTo={0.92} onClick={onToggleDraw} aria-pressed={drawing} aria-label={drawing ? 'Stop drawing' : 'Draw on the screen'}
+          style={{ ...pill, pointerEvents: 'auto', backgroundColor: drawing ? colors.primary : 'rgba(0,0,0,0.6)' }}>
+          <Icon name={drawing ? 'brush' : 'brush-outline'} size={13} color="#fff" />
+          <Text variant="small" color="#fff">{drawing ? 'Drawing' : 'Draw'}</Text>
+        </Pressable>
         {onStop && (
-          <Pressable scaleTo={0.92} onClick={onStop} style={{ ...pill, backgroundColor: colors.danger }}>
+          <Pressable scaleTo={0.92} onClick={onStop} style={{ ...pill, pointerEvents: 'auto', backgroundColor: colors.danger }}>
             <Icon name="stop" size={12} color="#fff" />
             <Text variant="small" color="#fff">{share.isLocal ? 'Stop sharing' : 'Stop share'}</Text>
           </Pressable>
         )}
       </div>
+
+      {drawing && (
+        <span style={{ ...pill, position: 'absolute', left: '50%', bottom: 10, transform: 'translateX(-50%)', maxWidth: 'calc(100% - 20px)', backgroundColor: 'rgba(0,0,0,0.6)', pointerEvents: 'none' }}>
+          <Text variant="small" color={colors.stageText} lines={1}>Everyone sees your drawing · it fades after {INK_HOLD_MS / 1000} s</Text>
+        </span>
+      )}
     </div>
   );
 }

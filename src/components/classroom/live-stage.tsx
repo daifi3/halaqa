@@ -10,6 +10,7 @@ import { Alert, Platform, StyleSheet } from 'react-native';
 import { api } from '@/lib/api';
 import { CHAT_TOPIC, decodeChat, encodeChat, type ChatTransport } from '@/lib/chat';
 import { decodeReaction, encodeReaction, REACTION_TOPIC, reactionId, type ReactionTransport } from '@/lib/reactions';
+import { decodeInk, encodeInk, INK_TOPIC, type InkTransport } from '@/lib/screen-ink';
 import { decodeScreen, encodeScreen, SCREEN_TOPIC, type ScreenSignal } from '@/lib/screen-share';
 import type { Room } from '@/lib/types';
 import { decodeWb, encodeWb, WB_TOPIC, type WbMessage, type WbTransport } from '@/lib/whiteboard';
@@ -141,6 +142,22 @@ export function LiveStage({ room, isTeacher, onLeave }: { room: Room; isTeacher:
     },
   }), [lk, localParticipant]);
 
+  // Drawings on the shared screen, signed with the participant LiveKit says sent them.
+  const ink = useMemo<InkTransport>(() => ({
+    send: (chunk) => {
+      localParticipant.publishData(encodeInk(chunk), { reliable: true, topic: INK_TOPIC }).catch(() => {});
+    },
+    subscribe: (handler) => {
+      const onData = (payload: Uint8Array, p?: Participant, _k?: unknown, topic?: string) => {
+        if (topic !== INK_TOPIC || !p) return;
+        const chunk = decodeInk(payload);
+        if (chunk) handler(chunk, { id: p.identity, name: p.name || p.identity });
+      };
+      lk.on(RoomEvent.DataReceived, onData);
+      return () => { lk.off(RoomEvent.DataReceived, onData); };
+    },
+  }), [lk, localParticipant]);
+
   // Show the teacher's screen when several people share, otherwise whoever is sharing.
   const shown = screenTracks.find((t) => isTrackReference(t) && roleOf(t.participant) === 'teacher')
     ?? screenTracks.find((t) => isTrackReference(t));
@@ -154,6 +171,7 @@ export function LiveStage({ room, isTeacher, onLeave }: { room: Room; isTeacher:
       ownerId: shown.participant.identity,
       name: shown.participant.name || shown.participant.identity,
       isLocal: shown.participant.isLocal,
+      aspect: shown.publication.dimensions ? shown.publication.dimensions.width / shown.publication.dimensions.height : null,
       video: shown.participant.isLocal ? undefined : <VideoTrack trackRef={shown} style={StyleSheet.absoluteFill} objectFit="contain" />,
     } : null,
   };
@@ -213,6 +231,7 @@ export function LiveStage({ room, isTeacher, onLeave }: { room: Room; isTeacher:
       reactions={reactions}
       screen={screen}
       screenSignal={screenSignal}
+      ink={ink}
       myId={localParticipant.identity}
       me={{ name: localParticipant.name || 'You' }}
       onMic={() => {

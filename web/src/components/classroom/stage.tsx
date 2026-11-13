@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Icon, type IconName } from '@/components/ui/icon';
 import { PulseDot } from '@/components/ui/misc';
 import { Pressable } from '@/components/ui/pressable';
@@ -8,6 +8,7 @@ import { chatId, type ChatMessage, type ChatTransport } from '@/lib/chat';
 import { alert } from '@/lib/dialog';
 import { formatClock } from '@/lib/format';
 import { reactionId, type Reaction, type ReactionEmoji, type ReactionTransport } from '@/lib/reactions';
+import type { InkTransport } from '@/lib/screen-ink';
 import type { ScreenSignal } from '@/lib/screen-share';
 import type { Room } from '@/lib/types';
 import type { WbTransport } from '@/lib/whiteboard';
@@ -18,6 +19,7 @@ import { ControlBar } from './control-bar';
 import { ParticipantTile, type TileInfo } from './participant-tile';
 import { FLOAT_MS, FloatingReactions, ReactionPicker } from './reactions';
 import { RequestCard, ScreenView, StudentShareBanner, TeacherSharePanel } from './screen-share';
+import { useScreenInk } from './use-screen-ink';
 import { useScreenShare, type ScreenCapture } from './use-screen-share';
 import { Whiteboard } from './whiteboard';
 
@@ -37,6 +39,8 @@ export interface StageProps {
   reactions: ReactionTransport;
   screen: ScreenCapture;
   screenSignal: ScreenSignal;
+  /** Drawings on the shared screen. */
+  ink: InkTransport;
   /** Your LiveKit identity — how the teacher addresses you in screen-share answers. */
   myId: string;
   /** Shown on your own messages to everyone else. */
@@ -289,6 +293,11 @@ export function Stage(props: StageProps) {
     signal: props.screenSignal, capture, isTeacher, myId: props.myId, roomId: room.id, connected: connection === 'connected',
   });
   const studentShare = capture.active && !capture.active.isLocal ? capture.active : null;
+  const shareId = capture.active?.ownerId ?? null;
+  const ink = useScreenInk(props.ink, shareId, useMemo(() => ({ id: props.myId, name: props.me.name }), [props.myId, props.me.name]));
+  // The share your pen is on for: it goes back off by itself when the share changes or ends.
+  const [drawingOn, setDrawingOn] = useState<string | null>(null);
+  const drawing = !!shareId && drawingOn === shareId;
 
   // The tile's mic icon updates by itself once LiveKit applies the mute.
   async function mute(run: () => Promise<void>) {
@@ -433,6 +442,9 @@ export function Stage(props: StageProps) {
     <div key={`screen-${capture.active.ownerId}`} className="v a-fade" style={{ flex: 1, minHeight: 0, gap: 10 }}>
       <ScreenView
         share={capture.active}
+        ink={ink}
+        drawing={drawing}
+        onToggleDraw={() => setDrawingOn(drawing ? null : shareId)}
         onStop={capture.active.isLocal ? share.stopMine : isTeacher ? () => share.stopStudent(capture.active!.ownerId) : undefined}
       />
       <Strip tiles={tiles} muteFor={muteFor} />

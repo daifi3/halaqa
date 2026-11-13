@@ -7,7 +7,7 @@ export interface ActiveShare {
   ownerId: string;
   name: string;
   isLocal: boolean;
-  /** The shared screen; absent for your own share (no point mirroring it) and in mock mode. */
+  /** The shared screen (yours too, as a preview); absent in mock mode. */
   video?: ReactNode;
 }
 

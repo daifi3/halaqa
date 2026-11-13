@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { demoChatTransport } from '@/lib/chat';
 import { demoReactionTransport } from '@/lib/reactions';
+import { noopInkTransport } from '@/lib/screen-ink';
 import { DEMO_ME, demoScreenSignal } from '@/lib/screen-share';
 import type { Room } from '@/lib/types';
 import { noopTransport } from '@/lib/whiteboard';
@@ -71,6 +72,7 @@ export function DemoStage({ room, isTeacher, onLeave }: { room: Room; isTeacher:
       reactions={reactions}
       screen={screen}
       screenSignal={screenSignal}
+      ink={noopInkTransport}
       myId={DEMO_ME}
       me={{ name: user.name }}
       canFlip={false}
