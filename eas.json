@@ -10,10 +10,16 @@
         "ORG_GRADLE_PROJECT_reactNativeArchitectures": "arm64-v8a,armeabi-v7a"
       }
     },
+    "development-simulator": {
+      "extends": "development",
+      "ios": { "simulator": true }
+    },
     "preview": {
       "distribution": "internal",
       "android": { "buildType": "apk", "gradleCommand": ":app:assembleRelease --stacktrace" },
       "env": {
+        "EXPO_PUBLIC_API_URL": "https://halaqa-api.onrender.com/api",
+        "EXPO_PUBLIC_USE_MOCK": "false",
         "GRADLE_OPTS": "-Dorg.gradle.jvmargs=\"-XX:MaxMetaspaceSize=1g -Xmx4g -Dfile.encoding=UTF-8\" -Dorg.gradle.parallel=false -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2",
         "ORG_GRADLE_PROJECT_reactNativeArchitectures": "arm64-v8a,armeabi-v7a"
       }
@@ -21,6 +27,8 @@
     "production": {
       "android": { "gradleCommand": ":app:bundleRelease --stacktrace" },
       "env": {
+        "EXPO_PUBLIC_API_URL": "https://halaqa-api.onrender.com/api",
+        "EXPO_PUBLIC_USE_MOCK": "false",
         "GRADLE_OPTS": "-Dorg.gradle.jvmargs=\"-XX:MaxMetaspaceSize=1g -Xmx3g -Dfile.encoding=UTF-8\" -Dorg.gradle.parallel=false -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2 -Dkotlin.compiler.execution.strategy=in-process",
         "ORG_GRADLE_PROJECT_reactNativeArchitectures": "arm64-v8a"
       }

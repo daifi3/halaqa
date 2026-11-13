@@ -1,16 +1,18 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
+import { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Button } from '@/components/ui/button';
 import { ChoiceRow } from '@/components/ui/choice';
-import { Avatar, Chip, EmptyState, IconButton, Skeleton } from '@/components/ui/misc';
+import { Chip, EmptyState, IconButton, PersonAvatar, Skeleton } from '@/components/ui/misc';
 import { Text } from '@/components/ui/text';
 import { api } from '@/lib/api';
-import { FINISH_LABEL, formatGrade, formatPoints, isAnswered, questionScore, scoreAttempt } from '@/lib/exam';
+import { FINISH_LABEL, formatGrade, formatPoints, gradingStatus, isAnswered, questionScore, scoreAttempt } from '@/lib/exam';
 import { formatDay, formatDuration, formatTime } from '@/lib/format';
-import type { ExamAttempt, ExamQuestion } from '@/lib/types';
+import type { Exam, ExamAttempt, ExamQuestion } from '@/lib/types';
 import { useQuery } from '@/lib/use-query';
 import { useSession } from '@/store/session';
 import { colors, fonts, radius, shadow } from '@/theme';
@@ -30,8 +32,8 @@ function OptionLine({ label, text, tone }: { label: string; text: string; tone: 
   );
 }
 
-function AnswerCard({ question: q, index, attempt, canGrade, onGrade }: {
-  question: ExamQuestion; index: number; attempt: ExamAttempt; canGrade: boolean;
+function AnswerCard({ question: q, index, attempt, canGrade, teacher, onGrade }: {
+  question: ExamQuestion; index: number; attempt: ExamAttempt; canGrade: boolean; teacher: boolean;
   onGrade: (questionId: string, points: number) => void;
 }) {
   const answer = attempt.answers[q.id];
@@ -84,7 +86,7 @@ function AnswerCard({ question: q, index, attempt, canGrade, onGrade }: {
               <OptionLine
                 key={i}
                 label={q.kind === 'truefalse' ? option[0]! : LETTERS[i]!}
-                text={chosen ? `${option}  ·  ${canGrade ? 'their answer' : 'your answer'}` : option}
+                text={chosen ? `${option}  ·  ${teacher ? 'their answer' : 'your answer'}` : option}
                 tone={correct ? 'correct' : chosen ? 'wrong' : 'neutral'}
               />
             );
@@ -96,18 +98,88 @@ function AnswerCard({ question: q, index, attempt, canGrade, onGrade }: {
   );
 }
 
+/** Teacher: what's left before the grade can be released, and the button that releases it. */
+function FinalizeCard({ exam, attempt, next, onChange }: {
+  exam: Exam; attempt: ExamAttempt; next: ExamAttempt | undefined; onChange: (a: ExamAttempt) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const status = gradingStatus(exam, attempt);
+  const { ungraded, grade, scale } = scoreAttempt(exam, attempt);
+  const first = attempt.student.name.split(' ')[0];
+
+  function run(call: Promise<ExamAttempt>, failTitle: string) {
+    setBusy(true);
+    call.then((a) => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      onChange(a);
+    })
+      .catch((e) => Alert.alert(failTitle, e instanceof Error ? e.message : 'Please try again.'))
+      .finally(() => setBusy(false));
+  }
+
+  function reopen() {
+    Alert.alert('Reopen this grade?', `You can change the points, then finalize again. ${first} keeps seeing ${formatGrade(grade)}/${scale} until then.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Reopen', onPress: () => run(api.reopenExamAttempt(attempt.id), 'Couldn’t reopen') },
+    ]);
+  }
+
+  const tone = status === 'final' ? colors.success : status === 'ready' ? colors.primary : colors.student;
+  const toneSoft = status === 'final' ? colors.successSoft : status === 'ready' ? colors.primarySoft : colors.studentSoft;
+
+  return (
+    <Animated.View entering={FadeInDown.delay(60)} style={styles.finalize}>
+      <View style={styles.finalizeHead}>
+        <View style={[styles.finalizeIcon, { backgroundColor: toneSoft }]}>
+          <Ionicons name={status === 'final' ? 'checkmark-done' : status === 'ready' ? 'ribbon-outline' : 'create-outline'} size={22} color={tone} />
+        </View>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text variant="bodyStrong">
+            {status === 'final' ? 'Grade is final' : status === 'ready' ? 'Ready to finalize' : `${ungraded} written ${ungraded === 1 ? 'answer' : 'answers'} to grade`}
+          </Text>
+          <Text variant="small" color={colors.muted}>
+            {status === 'final'
+              ? `Released to ${first} ${formatDay(attempt.finalizedAt!)} at ${formatTime(attempt.finalizedAt!)}.`
+              : status === 'ready'
+                ? `${first} gets ${formatGrade(grade)}/${scale}. Finalizing shows it to them and sends a notification.`
+                : 'Award points to each written answer below, then finalize the grade.'}
+          </Text>
+        </View>
+      </View>
+      {status === 'final' ? (
+        <Button title="Reopen to change" variant="secondary" icon="lock-open-outline" loading={busy} onPress={reopen} />
+      ) : (
+        <Button title="Finalize grade" icon="checkmark-done" accent={colors.success} loading={busy} disabled={status !== 'ready'}
+          onPress={() => run(api.finalizeExamAttempt(attempt.id), 'Couldn’t finalize')} />
+      )}
+      {next && (
+        <Button title={`Next: ${next.student.name}`} variant={status === 'final' ? 'primary' : 'ghost'} icon="arrow-forward"
+          onPress={() => router.replace(`/exam/attempt/${next.id}` as Href)} />
+      )}
+    </Animated.View>
+  );
+}
+
 export default function AttemptDetails() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const me = useSession((s) => s.user)!;
   const { data, loading, setData } = useQuery(async () => {
     const attempt = await api.getExamAttempt(id);
-    return { attempt, exam: await api.getExam(attempt.examId) };
+    const exam = await api.getExam(attempt.examId);
+    // The teacher moves on to the next student whose grade isn't final.
+    const others: ExamAttempt[] = exam.teacher.id === me.id ? await api.listExamAttempts(exam.id).catch(() => []) : [];
+    return { attempt, exam, others };
   });
   const attempt = data?.attempt;
   const exam = data?.exam;
 
   const owner = !!exam && exam.teacher.id === me.id;
   const mine = attempt?.student.id === me.id;
+  const next = exam && attempt
+    ? (data?.others ?? [])
+      .filter((a) => a.id !== attempt.id && a.finish && gradingStatus(exam, a) !== 'final')
+      .sort((a, b) => +new Date(a.finishedAt!) - +new Date(b.finishedAt!))[0]
+    : undefined;
   const visible = !!exam && !!attempt?.finish && (owner || (mine && exam.showResults));
 
   // Saved on the server, which checks the points are within the question's range.
@@ -148,7 +220,7 @@ export default function AttemptDetails() {
         <Animated.View entering={FadeInUp} style={{ gap: 8 }}>
           <Text variant="label" color={colors.primary}>{exam.title}</Text>
           <View style={styles.student}>
-            <Avatar name={attempt.student.name} size={44} />
+            <PersonAvatar person={attempt.student} size={44} />
             <View style={{ flex: 1 }}>
               <Text variant="title">{owner ? attempt.student.name : 'Your answers'}</Text>
               <Text variant="small" color={colors.muted}>
@@ -160,7 +232,7 @@ export default function AttemptDetails() {
 
         <Animated.View entering={FadeInDown.delay(40)} style={styles.score}>
           <View style={{ flex: 1 }}>
-            <Text variant="label" color="rgba(255,255,255,0.6)">Grade</Text>
+            <Text variant="label" color="rgba(255,255,255,0.6)">{attempt.finalizedAt ? 'Final grade' : 'Grade · not final'}</Text>
             <Text variant="display" color="#fff">{formatGrade(grade)}<Text variant="title" color="rgba(255,255,255,0.6)"> / {scale}</Text></Text>
           </View>
           <View style={{ alignItems: 'flex-end', gap: 4 }}>
@@ -173,8 +245,13 @@ export default function AttemptDetails() {
           </View>
         </Animated.View>
 
+        {owner && (
+          <FinalizeCard exam={exam} attempt={attempt} next={next}
+            onChange={(updated) => setData((d) => d && { ...d, attempt: updated, others: d.others.map((a) => (a.id === updated.id ? updated : a)) })} />
+        )}
+
         {exam.questions.map((q, i) => (
-          <AnswerCard key={q.id} question={q} index={i} attempt={attempt} canGrade={owner} onGrade={saveGrade} />
+          <AnswerCard key={q.id} question={q} index={i} attempt={attempt} canGrade={owner && !attempt.finalizedAt} teacher={owner} onGrade={saveGrade} />
         ))}
       </ScrollView>
     </SafeAreaView>
@@ -190,4 +267,7 @@ const styles = StyleSheet.create({
   cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   optionLine: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: radius.md },
   written: { backgroundColor: colors.bg, borderRadius: radius.md, padding: 12 },
+  finalize: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: 16, gap: 12, ...shadow.card },
+  finalizeHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  finalizeIcon: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
 });

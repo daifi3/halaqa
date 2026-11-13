@@ -15,10 +15,11 @@ type Badge = { label: string; color: string; bg: string; icon: keyof typeof Ioni
 function badgeFor(exam: Exam, now: number, attempt: ExamAttempt | undefined, teacher: boolean): Badge {
   const window = examWindow(exam, now);
   if (!teacher && attempt) {
-    if (!exam.showResults) return { label: 'Completed', color: colors.success, bg: colors.successSoft, icon: 'checkmark-circle' };
+    if (!exam.showResults && !attempt.finalizedAt) return { label: 'Awaiting grade', color: colors.success, bg: colors.successSoft, icon: 'checkmark-circle' };
     const { grade, scale, ungraded } = scoreAttempt(exam, attempt);
+    if (attempt.finalizedAt) return { label: `${formatGrade(grade)}/${scale} · final`, color: colors.success, bg: colors.successSoft, icon: 'ribbon' };
     return {
-      label: ungraded ? `Grading in progress` : `${formatGrade(grade)}/${scale}`,
+      label: ungraded ? `Grading in progress` : `${formatGrade(grade)}/${scale} · not final`,
       color: colors.success, bg: colors.successSoft, icon: 'checkmark-circle',
     };
   }
@@ -31,7 +32,7 @@ function badgeFor(exam: Exam, now: number, attempt: ExamAttempt | undefined, tea
   return { label: 'Open now', color: colors.primary, bg: colors.primarySoft, icon: 'radio-button-on' };
 }
 
-export function ExamCard({ exam, index, onPress, attempt, submissionCount, showCourse }: {
+export function ExamCard({ exam, index, onPress, attempt, submissionCount, pending, showCourse }: {
   exam: Exam;
   index: number;
   onPress: () => void;
@@ -39,6 +40,8 @@ export function ExamCard({ exam, index, onPress, attempt, submissionCount, showC
   attempt?: ExamAttempt;
   /** Teacher view: how many students have finished. */
   submissionCount?: number;
+  /** Teacher view: finished attempts whose grade isn't final yet. */
+  pending?: number | null;
   showCourse?: boolean;
 }) {
   const [now] = useState(() => Date.now());
@@ -62,6 +65,7 @@ export function ExamCard({ exam, index, onPress, attempt, submissionCount, showC
           <View style={styles.meta}>
             <Chip label={badge.label} icon={badge.icon} color={badge.color} bg={badge.bg} />
             {teacher && <Chip label={`${submissionCount} submitted`} icon="people-outline" />}
+            {teacher && !!pending && <Chip label={`${pending} to grade`} icon="create-outline" color={colors.student} bg={colors.studentSoft} />}
           </View>
         </View>
         <Ionicons name="chevron-forward" size={18} color={colors.muted} />

@@ -8,7 +8,7 @@ import Animated, { FadeInDown, FadeInUp, LinearTransition } from 'react-native-r
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Avatar, Chip, EmptyState, IconButton, Skeleton } from '@/components/ui/misc';
+import { Chip, EmptyState, IconButton, PersonAvatar, Skeleton } from '@/components/ui/misc';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
 import { api } from '@/lib/api';
@@ -120,7 +120,7 @@ export default function HomeworkDetails() {
             </Text>
           </View>
           <View style={styles.teacherRow}>
-            <Avatar name={homework.teacher.name} size={28} />
+            <PersonAvatar person={homework.teacher} size={28} />
             <Text color={colors.inkSoft}>Assigned by {homework.teacher.name}</Text>
           </View>
         </Animated.View>
@@ -135,7 +135,7 @@ export default function HomeworkDetails() {
                 {submissions.map((s) => (
                   <Animated.View key={s.id} layout={LinearTransition.springify()} style={styles.submissionCard}>
                     <View style={styles.submissionHeader}>
-                      <Avatar name={s.student.name} size={32} />
+                      <PersonAvatar person={s.student} size={32} />
                       <View style={{ flex: 1 }}>
                         <Text variant="bodyStrong">{s.student.name}</Text>
                         <Text variant="small" color={colors.muted}>Submitted {formatDay(s.submittedAt)}</Text>

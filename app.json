@@ -14,8 +14,10 @@
         "NSCameraUsageDescription": "Halaqa uses the camera so your class can see you and to scan class QR codes.",
         "NSMicrophoneUsageDescription": "Halaqa uses the microphone so your class can hear you.",
         "UIBackgroundModes": [
+          "audio",
           "audio"
-        ]
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       },
       "bitcode": false
     },
@@ -39,7 +41,9 @@
         "android.permission.WAKE_LOCK",
         "android.permission.BLUETOOTH",
         "android.permission.FOREGROUND_SERVICE",
-        "android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION"
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
       ]
     },
     "web": {
@@ -92,6 +96,13 @@
         {
           "cameraPermission": "Halaqa uses the camera so your class can see you and to scan class QR codes.",
           "microphonePermission": "Halaqa uses the microphone so your class can hear you."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#4B44E0",
+          "defaultChannel": "default"
         }
       ],
       [

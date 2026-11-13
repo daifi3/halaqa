@@ -47,7 +47,6 @@ function ActionRow({ icon, title, body, tint, onPress }: {
 export default function Profile() {
   const user = useSession((s) => s.user)!;
   const updateUser = useSession((s) => s.updateUser);
-  const signOut = useSession((s) => s.signOut);
   const tone = user.role === 'teacher' ? colors.teacher : colors.student;
   const [uploading, setUploading] = useState(false);
   const biometric = useSecurityPrefs((s) => biometricRecordOf(s, user.id));
@@ -178,7 +177,7 @@ export default function Profile() {
             onPress={() =>
               Alert.alert('Sign out?', 'You can sign back in at any time.', [
                 { text: 'Cancel', style: 'cancel' },
-                { text: 'Sign out', style: 'destructive', onPress: signOut },
+                { text: 'Sign out', style: 'destructive', onPress: () => void api.signOut() },
               ])
             }
           />

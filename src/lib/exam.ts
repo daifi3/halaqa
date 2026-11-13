@@ -79,3 +79,17 @@ export const formatPoints = (n: number) => `${n} ${n === 1 ? 'pt' : 'pts'}`;
 
 /** 15 → "15", 14.5 → "14.5", 13.333 → "13.33". */
 export const formatGrade = (n: number) => String(Math.round(n * 100) / 100);
+
+/** Where a finished attempt is in grading: written answers left, graded but not released, or final. */
+export type GradingStatus = 'to_grade' | 'ready' | 'final';
+
+export function gradingStatus(exam: Gradable, attempt: ExamAttempt): GradingStatus {
+  if (attempt.finalizedAt) return 'final';
+  return scoreAttempt(exam, attempt).ungraded ? 'to_grade' : 'ready';
+}
+
+/** Teacher view of an exam: finished attempts whose grade isn't final yet (null when the server doesn't say). */
+export function pendingGrades(exam: Pick<Exam, 'submissionCount' | 'finalizedCount'>) {
+  if (exam.finalizedCount == null) return null;
+  return Math.max(0, (exam.submissionCount ?? 0) - exam.finalizedCount);
+}

@@ -12,6 +12,7 @@ import { colors, radius } from '@/theme';
 const TEACHER_ITEMS: { key: NotificationKey; icon: keyof typeof Ionicons.glyphMap; title: string; body: string }[] = [
   { key: 'classReminders', icon: 'calendar-outline', title: 'Class reminders', body: 'Before a session you scheduled starts' },
   { key: 'homeworkDue', icon: 'time-outline', title: 'Homework due soon', body: 'When an assignment deadline is approaching' },
+  { key: 'examSubmissions', icon: 'ribbon-outline', title: 'Exam submissions', body: 'When a student finishes one of your exams' },
   { key: 'courseInvites', icon: 'mail-outline', title: 'Roster activity', body: 'When a student joins one of your courses' },
   { key: 'documentsShared', icon: 'folder-outline', title: 'Vault activity', body: "When someone opens a document you've shared" },
   { key: 'recordingsReady', icon: 'play-circle-outline', title: 'Recordings ready', body: 'When a class recording finishes processing' },
@@ -21,6 +22,7 @@ const STUDENT_ITEMS: { key: NotificationKey; icon: keyof typeof Ionicons.glyphMa
   { key: 'classReminders', icon: 'calendar-outline', title: 'Class reminders', body: 'Before a class you joined starts' },
   { key: 'homeworkAssigned', icon: 'document-text-outline', title: 'New homework', body: 'When a teacher assigns a new homework' },
   { key: 'homeworkDue', icon: 'time-outline', title: 'Homework due soon', body: "When one of your deadlines is approaching" },
+  { key: 'examGrades', icon: 'ribbon-outline', title: 'Exam grades', body: 'When a teacher finalizes your exam grade' },
   { key: 'courseInvites', icon: 'mail-outline', title: 'Course invites', body: 'When a teacher invites you to a course' },
   { key: 'documentsShared', icon: 'folder-outline', title: 'Shared documents', body: 'When a teacher shares a document with you' },
   { key: 'recordingsReady', icon: 'play-circle-outline', title: 'Recordings ready', body: 'When a recording of a class is ready to watch' },

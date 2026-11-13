@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown, LinearTransition } from 'react-native-reanimated';
 import type { Course } from '@/lib/types';
 import { colors, radius, shadow } from '@/theme';
-import { Avatar, Chip } from './ui/misc';
+import { Chip, PersonAvatar } from './ui/misc';
 import { PressableScale } from './ui/pressable-scale';
 import { Text } from './ui/text';
 
@@ -23,7 +23,7 @@ export function CourseCard({ course, index, onPress }: { course: Course; index: 
 
         <View style={styles.bottom}>
           <View style={styles.teacher}>
-            <Avatar name={course.teacher.name} size={28} />
+            <PersonAvatar person={course.teacher} size={28} />
             <Text variant="small" color={colors.inkSoft}>{course.teacher.name}</Text>
           </View>
           <View style={styles.roster}>

@@ -1,19 +1,23 @@
 import { File as FsFile } from 'expo-file-system';
-import { Platform } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import { config } from './config';
-import { attemptDeadline, examWindow, scoreAttempt } from './exam';
+import { attemptDeadline, examWindow, formatGrade, scoreAttempt } from './exam';
 import type {
-  Course, Exam, ExamAnswer, ExamAttempt, Homework, HomeworkSubmission, JoinCredentials, NewCourseInput, NewExamInput,
+  AuthSession, Course, Exam, ExamAnswer, ExamAttempt, Homework, HomeworkSubmission, JoinCredentials, NewCourseInput, NewExamInput,
   NewRoomInput, NewVaultDocumentInput, PickedFile, Recording, Role, Room, RoomStudent, RsvpStatus, StoredChatMessage,
-  StoredExam, SubmitHomeworkInput, User, VaultDocument,
+  StoredExam, SubmitHomeworkInput, User, VaultDocument, AppNotification, Inbox, NotificationKind,
 } from './types';
+import { useDemoNotifications } from '@/store/demo-notifications';
 import { useExamsStore } from '@/store/exams';
+import { getPushToken, setPushToken } from './push-token';
 import { useHomeworkStore } from '@/store/homework';
 import { useSession } from '@/store/session';
 
 export interface Api {
-  signUp(input: { name: string; email: string; password: string; role: Role }): Promise<{ user: User; token: string }>;
-  logIn(input: { email: string; password: string }): Promise<{ user: User; token: string }>;
+  signUp(input: { name: string; email: string; password: string; role: Role }): Promise<AuthSession>;
+  logIn(input: { email: string; password: string }): Promise<AuthSession>;
+  /** Clears the session on this device and revokes its tokens on the server. */
+  signOut(): Promise<void>;
   uploadAvatar(file: PickedFile): Promise<User>;
   removeAvatar(): Promise<User>;
   changePassword(input: { currentPassword: string; newPassword: string }): Promise<void>;
@@ -81,8 +85,23 @@ export interface Api {
   saveExamAnswer(attemptId: string, questionId: string, value: ExamAnswer | null): Promise<ExamAttempt>;
   /** Ends the attempt for good. The server records `time_up` instead once the deadline has passed. */
   finishExamAttempt(attemptId: string, reason: 'submitted' | 'left'): Promise<ExamAttempt>;
-  /** Course teacher only — points for a written answer. */
+  /** Course teacher only — points for a written answer. Refused once the grade is final. */
   gradeExamAnswer(attemptId: string, questionId: string, points: number): Promise<ExamAttempt>;
+  /** Course teacher only — locks the grade and releases it to the student, who is notified. Every written answer must be graded. */
+  finalizeExamAttempt(attemptId: string): Promise<ExamAttempt>;
+  /** Course teacher only — unlocks a final grade to change it. */
+  reopenExamAttempt(attemptId: string): Promise<ExamAttempt>;
+  /** Course teacher only — finalizes every fully graded attempt; returns all the attempts. */
+  finalizeAllExamAttempts(examId: string): Promise<ExamAttempt[]>;
+
+  // Notifications (the bell)
+  listNotifications(): Promise<Inbox>;
+  markNotificationRead(id: string): Promise<void>;
+  markAllNotificationsRead(): Promise<void>;
+  /** Registers this phone's Expo push token, with the notification kinds turned off on it. */
+  registerPushToken(input: { token: string; platform: string; muted: NotificationKind[] }): Promise<void>;
+  /** Stops pushes to this phone (sign-out, or notifications turned off). */
+  removePushToken(token: string): Promise<void>;
 
   // Class chat history (live delivery goes over LiveKit)
   listRoomMessages(roomId: string): Promise<StoredChatMessage[]>;
@@ -117,8 +136,68 @@ async function fileForm(file: PickedFile, extra?: Record<string, string | undefi
   return form;
 }
 
+/** Thrown when the access token expired and the refresh token can't renew it; the user has been signed out. */
+export class SessionExpiredError extends Error {
+  constructor() {
+    super('Your session has expired. Please sign in again.');
+  }
+}
+
+/** Endpoints that don't use the access token: a 401 there means wrong credentials, not an expired session. */
+const PUBLIC_AUTH_PATHS = ['/auth/sign-up', '/auth/sign-in', '/auth/refresh', '/auth/sign-out'];
+
+/** Signs out once (concurrent failing requests all land here) and tells the user why. */
+function expireSession() {
+  if (!useSession.getState().user) return;
+  useSession.getState().signOut(); // Protected routes send the user back to the sign-in screens.
+  Alert.alert('Session expired', 'Please sign in again to continue.');
+}
+
+let refreshing: Promise<string | null> | null = null;
+
+/**
+ * Trades the refresh token for a new token pair and returns the new access token,
+ * or null when the session is over (refresh token expired or revoked — the user is signed out).
+ * Network errors are thrown instead, so being offline never signs anyone out.
+ *
+ * Refresh tokens are single-use, so concurrent 401s must share one refresh call:
+ * a second call with the same refresh token would be rejected.
+ */
+function refreshAccessToken(staleToken: string): Promise<string | null> {
+  const { token, refreshToken } = useSession.getState();
+  // Another request already refreshed while this one was in flight.
+  if (token && token !== staleToken) return Promise.resolve(token);
+  if (!refreshToken) {
+    expireSession();
+    return Promise.resolve(null);
+  }
+  refreshing ??= (async () => {
+    try {
+      const res = await fetch(`${config.apiUrl}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
+      const current = useSession.getState();
+      // Signed out (or into another account) meanwhile: don't bring the old session back.
+      if (current.refreshToken !== refreshToken) return current.token;
+      if (res.status === 400 || res.status === 401) {
+        expireSession();
+        return null;
+      }
+      if (!res.ok) throw new Error(`Could not renew your session (${res.status})`);
+      const session = (await res.json()) as AuthSession;
+      current.setTokens(session.token, session.refreshToken);
+      return session.token;
+    } finally {
+      refreshing = null;
+    }
+  })();
+  return refreshing;
+}
+
 class HttpApi implements Api {
-  private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  private async request<T>(path: string, init: RequestInit = {}, isRetry = false): Promise<T> {
     const token = useSession.getState().token;
     const isForm = init.body instanceof FormData;
     const res = await fetch(`${config.apiUrl}${path}`, {
@@ -129,6 +208,12 @@ class HttpApi implements Api {
         ...(init.headers ?? {}),
       },
     });
+    // Access token expired (or revoked): renew it once and replay the request.
+    if (res.status === 401 && token && !isRetry && !PUBLIC_AUTH_PATHS.includes(path)) {
+      const fresh = await refreshAccessToken(token);
+      if (!fresh) throw new SessionExpiredError();
+      return this.request<T>(path, init, true);
+    }
     if (!res.ok) {
       let message = `Request failed (${res.status})`;
       try {
@@ -143,10 +228,27 @@ class HttpApi implements Api {
   }
 
   signUp(input: { name: string; email: string; password: string; role: Role }) {
-    return this.request<{ user: User; token: string }>('/auth/sign-up', { method: 'POST', body: JSON.stringify(input) });
+    return this.request<AuthSession>('/auth/sign-up', { method: 'POST', body: JSON.stringify(input) });
   }
   logIn(input: { email: string; password: string }) {
-    return this.request<{ user: User; token: string }>('/auth/sign-in', { method: 'POST', body: JSON.stringify(input) });
+    return this.request<AuthSession>('/auth/sign-in', { method: 'POST', body: JSON.stringify(input) });
+  }
+  async signOut() {
+    const { token, refreshToken } = useSession.getState();
+    const pushToken = getPushToken();
+    setPushToken(null);
+    useSession.getState().signOut(); // Sign out right away; revoking on the server is best effort.
+    const auth: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+    void (async () => {
+      // Stop pushes to this phone first, while the access token still works.
+      if (pushToken && token) {
+        await this.request<void>(`/notifications/push-token?token=${encodeURIComponent(pushToken)}`, { method: 'DELETE', headers: auth })
+          .catch(() => {});
+      }
+      if (refreshToken) {
+        await this.request<void>('/auth/sign-out', { method: 'POST', body: JSON.stringify({ refreshToken }), headers: auth }).catch(() => {});
+      }
+    })();
   }
   async uploadAvatar(file: PickedFile) {
     return this.request<User>('/auth/me/avatar', { method: 'POST', body: await fileForm(file) });
@@ -248,6 +350,25 @@ class HttpApi implements Api {
   gradeExamAnswer(attemptId: string, questionId: string, points: number) {
     return this.request<ExamAttempt>(`/exam-attempts/${attemptId}/grades/${encodeURIComponent(questionId)}`,
       { method: 'PUT', body: JSON.stringify({ points }) });
+  }
+  finalizeExamAttempt(attemptId: string) {
+    return this.request<ExamAttempt>(`/exam-attempts/${attemptId}/finalize`, { method: 'POST' });
+  }
+  reopenExamAttempt(attemptId: string) {
+    return this.request<ExamAttempt>(`/exam-attempts/${attemptId}/finalize`, { method: 'DELETE' });
+  }
+  finalizeAllExamAttempts(examId: string) {
+    return this.request<ExamAttempt[]>(`/exams/${examId}/finalize`, { method: 'POST' });
+  }
+
+  listNotifications() { return this.request<Inbox>('/notifications'); }
+  async markNotificationRead(id: string) { await this.request<AppNotification>(`/notifications/${id}/read`, { method: 'POST' }); }
+  markAllNotificationsRead() { return this.request<void>('/notifications/read-all', { method: 'POST' }); }
+  registerPushToken(input: { token: string; platform: string; muted: NotificationKind[] }) {
+    return this.request<void>('/notifications/push-token', { method: 'PUT', body: JSON.stringify(input) });
+  }
+  removePushToken(token: string) {
+    return this.request<void>(`/notifications/push-token?token=${encodeURIComponent(token)}`, { method: 'DELETE' });
   }
 
   listRoomMessages(roomId: string) { return this.request<StoredChatMessage[]>(`/rooms/${roomId}/messages`); }
@@ -391,7 +512,7 @@ class MockApi implements Api {
     if (this.accounts.some((a) => a.email === email)) throw new Error('An account with this email already exists');
     const user: User = { id: uid(), name: input.name.trim(), email, role: input.role, avatarUrl: null };
     this.accounts.push({ ...user, password: input.password });
-    return { user, token: `mock-token-${user.id}` };
+    return { user, token: `mock-token-${user.id}`, refreshToken: `mock-refresh-${user.id}` };
   }
 
   async logIn(input: { email: string; password: string }) {
@@ -400,7 +521,11 @@ class MockApi implements Api {
     const account = this.accounts.find((a) => a.email === email);
     if (!account || account.password !== input.password) throw new Error('Invalid email or password');
     const user: User = { id: account.id, name: account.name, email: account.email, role: account.role, avatarUrl: account.avatarUrl ?? null };
-    return { user, token: `mock-token-${user.id}` };
+    return { user, token: `mock-token-${user.id}`, refreshToken: `mock-refresh-${user.id}` };
+  }
+
+  async signOut() {
+    useSession.getState().signOut();
   }
 
   async uploadAvatar(file: PickedFile) {
@@ -717,6 +842,7 @@ class MockApi implements Api {
   private expire(exam: StoredExam, attempt: ExamAttempt) {
     if (!attempt.finish && Date.now() > attemptDeadline(exam, attempt) + 15_000) {
       useExamsStore.getState().finish(attempt.id, 'time_up');
+      this.notifyFinished(exam, this.findAttempt(attempt.id));
       return this.findAttempt(attempt.id);
     }
     return attempt;
@@ -724,7 +850,7 @@ class MockApi implements Api {
 
   private attemptView(exam: StoredExam, attempt: ExamAttempt): ExamAttempt {
     const me = this.me();
-    const visible = exam.teacher.id === me.id || (!!attempt.finish && exam.showResults);
+    const visible = exam.teacher.id === me.id || (!!attempt.finish && (exam.showResults || !!attempt.finalizedAt));
     return {
       ...attempt,
       deadline: new Date(attemptDeadline(exam, attempt)).toISOString(),
@@ -750,6 +876,7 @@ class MockApi implements Api {
       totalPoints: exam.questions.reduce((sum, q) => sum + q.points, 0),
       myAttempt: mine ? this.attemptView(exam, mine) : owner ? undefined : null,
       submissionCount: owner ? store.attempts.filter((a) => a.examId === exam.id && a.finish).length : null,
+      finalizedCount: owner ? store.attempts.filter((a) => a.examId === exam.id && a.finalizedAt).length : null,
     };
   }
 
@@ -822,7 +949,10 @@ class MockApi implements Api {
     const attempt = this.findAttempt(attemptId);
     const exam = this.findExam(attempt.examId);
     const late = Date.now() > attemptDeadline(exam, attempt);
-    useExamsStore.getState().finish(attemptId, late ? 'time_up' : reason);
+    if (!attempt.finish) {
+      useExamsStore.getState().finish(attemptId, late ? 'time_up' : reason);
+      this.notifyFinished(exam, this.findAttempt(attemptId));
+    }
     return this.attemptView(exam, this.findAttempt(attemptId));
   }
 
@@ -833,9 +963,92 @@ class MockApi implements Api {
     const q = exam.questions.find((x) => x.id === questionId);
     if (!q || q.kind !== 'written') throw new Error('Only written answers are graded by hand');
     if (points < 0 || points > q.points) throw new Error(`This question is worth at most ${q.points} points`);
+    if (attempt.finalizedAt) throw new Error('This grade is final. Reopen it to change it');
     useExamsStore.getState().grade(attemptId, questionId, points);
     return this.attemptView(exam, this.findAttempt(attemptId));
   }
+
+  /** Same messages as the server's ExamNotifier. */
+  private notifyFinished(exam: StoredExam, attempt: ExamAttempt) {
+    const who = attempt.student.name;
+    const title = attempt.finish === 'time_up' ? `Time ran out for ${who} on “${exam.title}”`
+      : attempt.finish === 'left' ? `${who} left “${exam.title}”`
+      : `${who} submitted “${exam.title}”`;
+    const { ungraded, grade, scale } = scoreAttempt(exam, attempt);
+    const next = ungraded ? `${ungraded} written ${ungraded === 1 ? 'answer' : 'answers'} to grade` : `Auto-graded ${formatGrade(grade)}/${scale} · ready to finalize`;
+    useDemoNotifications.getState().add(exam.teacher.id, {
+      kind: 'exam_submitted', title, body: `${exam.courseTitle} · ${next}`, link: `/exam/attempt/${attempt.id}`,
+    });
+  }
+
+  private ownedFinishedAttempt(attemptId: string) {
+    const attempt = this.findAttempt(attemptId);
+    const exam = this.findExam(attempt.examId);
+    if (exam.teacher.id !== this.me().id) throw new Error('Only the course teacher can do this');
+    if (!this.expire(exam, attempt).finish) throw new Error('Wait until the student has finished');
+    return { exam, attempt: this.findAttempt(attemptId) };
+  }
+
+  private finalize(exam: StoredExam, attempt: ExamAttempt) {
+    useExamsStore.getState().setFinalized(attempt.id, new Date().toISOString());
+    const { grade, scale } = scoreAttempt(exam, attempt);
+    useDemoNotifications.getState().add(attempt.student.id, {
+      kind: 'exam_graded', title: `Your grade for “${exam.title}”: ${formatGrade(grade)}/${scale}`,
+      body: `${exam.courseTitle} · Graded by ${exam.teacher.name}`, link: `/exam/${exam.id}`,
+    });
+  }
+
+  async finalizeExamAttempt(attemptId: string) {
+    await wait(200);
+    const { exam, attempt } = this.ownedFinishedAttempt(attemptId);
+    if (!attempt.finalizedAt) {
+      const { ungraded } = scoreAttempt(exam, attempt);
+      if (ungraded) throw new Error(`Grade every written answer first (${ungraded} left)`);
+      this.finalize(exam, attempt);
+    }
+    return this.attemptView(exam, this.findAttempt(attemptId));
+  }
+
+  async reopenExamAttempt(attemptId: string) {
+    await wait(150);
+    const { exam } = this.ownedFinishedAttempt(attemptId);
+    useExamsStore.getState().setFinalized(attemptId, null);
+    return this.attemptView(exam, this.findAttempt(attemptId));
+  }
+
+  async finalizeAllExamAttempts(examId: string) {
+    await wait(300);
+    const exam = this.findExam(examId);
+    if (exam.teacher.id !== this.me().id) throw new Error('Only the course teacher can do this');
+    for (const stored of useExamsStore.getState().attempts.filter((a) => a.examId === examId)) {
+      const a = this.expire(exam, stored);
+      if (a.finish && !a.finalizedAt && !scoreAttempt(exam, a).ungraded) this.finalize(exam, a);
+    }
+    return this.listExamAttempts(examId);
+  }
+
+  /* ---------- Notifications — on this device ---------- */
+
+  async listNotifications(): Promise<Inbox> {
+    const me = this.me();
+    const mine = useDemoNotifications.getState().items.filter((n) => n.recipientId === me.id);
+    return {
+      items: mine.slice(0, 50).map(({ recipientId: _, ...n }) => n),
+      unread: mine.filter((n) => !n.readAt).length,
+    };
+  }
+
+  async markNotificationRead(id: string) {
+    useDemoNotifications.getState().markRead(id);
+  }
+
+  async markAllNotificationsRead() {
+    useDemoNotifications.getState().markAllRead(this.me().id);
+  }
+
+  // Demo mode has no server to push from: the bell and the list still work.
+  async registerPushToken() {}
+  async removePushToken() {}
 
   /* ---------- Class chat history — in memory ---------- */
 

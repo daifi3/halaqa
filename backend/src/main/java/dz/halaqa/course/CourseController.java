@@ -1,6 +1,7 @@
 package dz.halaqa.course;
 
 import dz.halaqa.auth.AuthInterceptor;
+import dz.halaqa.auth.PersonDto;
 import dz.halaqa.auth.User;
 import dz.halaqa.mail.MailService;
 import dz.halaqa.room.RoomController;
@@ -12,7 +13,6 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,13 +35,13 @@ public class CourseController {
     public record JoinRequest(@NotBlank @Size(min = 6, max = 6) String code) {}
 
     public record CourseDto(String id, String title, String subject, String description, String joinCode,
-                             Map<String, String> teacher, List<String> invitedEmails, int memberCount,
+                             PersonDto teacher, List<String> invitedEmails, int memberCount,
                              int roomCount, Instant createdAt) {
         static CourseDto of(Course c, User viewer, long roomCount) {
             boolean owner = c.getTeacher().getId().equals(viewer.getId());
             return new CourseDto(c.getId(), c.getTitle(), c.getSubject(), c.getDescription(),
                     owner ? c.getJoinCode() : "", // only the teacher needs the code
-                    Map.of("id", c.getTeacher().getId(), "name", c.getTeacher().getName()),
+                    PersonDto.of(c.getTeacher()),
                     owner ? List.copyOf(c.getInvitedEmails()) : List.of(),
                     c.getMemberIds().size(), (int) roomCount, c.getCreatedAt());
         }

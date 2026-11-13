@@ -8,12 +8,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { iconForMime } from '@/components/vault-document-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Avatar, Chip, EmptyState, IconButton, Skeleton } from '@/components/ui/misc';
+import { Avatar, Chip, EmptyState, IconButton, PersonAvatar, Skeleton } from '@/components/ui/misc';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
 import { api } from '@/lib/api';
 import { formatBytes, formatDay, isValidEmail } from '@/lib/format';
 import { useQuery } from '@/lib/use-query';
+import { openViewer, viewerKind } from '@/lib/viewer';
 import { colors, radius } from '@/theme';
 
 export default function VaultDocumentDetails() {
@@ -45,6 +46,14 @@ export default function VaultDocumentDetails() {
   async function unshare(email: string) {
     const updated = await api.unshareVaultDocument(id, email);
     setData(updated);
+  }
+
+  function openDocument() {
+    if (!doc) return;
+    const kind = viewerKind(doc.mimeType, doc.url);
+    // PDFs and images open in the app; anything else goes to an app that can read it.
+    if (kind) openViewer({ url: doc.url, title: doc.title, kind });
+    else Linking.openURL(doc.url).catch(() => Alert.alert('Could not open this file'));
   }
 
   function confirmDelete() {
@@ -90,7 +99,7 @@ export default function VaultDocumentDetails() {
               <Text color={colors.muted}>{formatBytes(doc.sizeBytes)} · Added {formatDay(doc.createdAt)}</Text>
             </View>
             <View style={styles.ownerRow}>
-              <Avatar name={doc.owner.name} size={28} />
+              <PersonAvatar person={doc.owner} size={28} />
               <Text color={colors.inkSoft}>{doc.canManage ? 'Uploaded by you' : `Shared by ${doc.owner.name}`}</Text>
             </View>
             {doc.folder && <Chip label={doc.folder} icon="folder-outline" />}
@@ -98,9 +107,9 @@ export default function VaultDocumentDetails() {
 
           <Animated.View entering={FadeInDown.delay(80)}>
             <Button
-              title="Open document"
-              icon="open-outline"
-              onPress={() => Linking.openURL(doc.url).catch(() => Alert.alert('Could not open this file'))}
+              title={viewerKind(doc.mimeType, doc.url) ? 'View document' : 'Open document'}
+              icon={viewerKind(doc.mimeType, doc.url) ? 'eye-outline' : 'open-outline'}
+              onPress={openDocument}
             />
           </Animated.View>
 

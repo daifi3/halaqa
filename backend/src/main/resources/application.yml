@@ -1,6 +1,6 @@
 server:
-  # Listens on the network address only, so phones on the same Wi-Fi can reach it (not localhost).
-  address: ${SERVER_ADDRESS:192.168.1.65}
+  # All interfaces, so phones on the same Wi-Fi can reach it and a changed LAN IP never breaks startup.
+  address: ${SERVER_ADDRESS:0.0.0.0}
   # Render sets PORT; locally run-local.ps1 sets SERVER_PORT.
   port: ${PORT:3000}
 
@@ -29,18 +29,32 @@ spring:
 
 halaqa:
   # Address the phone uses to reach this backend (used to build recording URLs).
-  public-base-url: ${PUBLIC_BASE_URL:${RENDER_EXTERNAL_URL:http://192.168.1.65:3000}}
+  public-base-url: ${PUBLIC_BASE_URL:${RENDER_EXTERNAL_URL:http://192.168.1.73:3000}}
+  # Sites allowed to call the backend from a browser (the web app in web/). Comma separated, patterns
+  # allowed, e.g. WEB_ORIGINS=https://halaqa-web.onrender.com,http://localhost:5173. "*" = any site,
+  # which is safe here because the API uses bearer tokens, not cookies (see CorsConfig).
+  web-origins: ${WEB_ORIGINS:*}
+  push:
+    # Phone notifications through Expo's push service (exp.host). Android also needs FCM
+    # credentials uploaded to EAS. EXPO_ACCESS_TOKEN only if "enhanced push security" is on.
+    enabled: ${PUSH_ENABLED:true}
+    access-token: ${EXPO_ACCESS_TOKEN:}
   storage:
     avatar-dir: ${AVATAR_DIR:./data/avatars}
     vault-dir: ${VAULT_DIR:./data/vault}
     homework-dir: ${HOMEWORK_DIR:./data/homework}
+  auth:
+    # Access tokens are short-lived; the app swaps its refresh token for a new pair when one expires.
+    # Once the refresh token expires too, the user has to sign in again.
+    access-token-ttl: ${ACCESS_TOKEN_TTL:15m}
+    refresh-token-ttl: ${REFRESH_TOKEN_TTL:30d}
   livekit:
     # URL the *app* connects to (websocket)
-    ws-url: ${LIVEKIT_WS_URL:ws://192.168.1.65:7880}
+    ws-url: wss://halaqa-087jcbgn.livekit.cloud
     # URL the *backend* uses for server APIs (egress)
-    api-url: ${LIVEKIT_API_URL:http://localhost:7880}
-    api-key: ${LIVEKIT_API_KEY:devkey}
-    api-secret: ${LIVEKIT_API_SECRET:secret_change_me_to_at_least_32_chars}
+    api-url: https://halaqa-087jcbgn.livekit.cloud
+    api-key: APIBurB7TwSzoG5
+    api-secret: 3GsFangefs03AdR5eRU60uR1x58RmthfUvkF8XosnM8B
     # Path *inside the egress container* where files are written
     egress-output-dir: /out
     # Off on Render: LiveKit Cloud can only record to cloud storage, which isn't set up yet.

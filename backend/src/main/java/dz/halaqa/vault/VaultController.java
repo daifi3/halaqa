@@ -1,6 +1,7 @@
 package dz.halaqa.vault;
 
 import dz.halaqa.auth.AuthInterceptor;
+import dz.halaqa.auth.PersonDto;
 import dz.halaqa.auth.User;
 import dz.halaqa.common.FileStorage;
 import dz.halaqa.common.HalaqaProperties;
@@ -13,7 +14,6 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,13 +31,13 @@ public class VaultController {
     public record UpdateRequest(@Size(max = 120) String title, @Size(max = 60) String folder) {}
 
     public record DocumentDto(String id, String title, String folder, String mimeType, long sizeBytes,
-                               String url, Instant createdAt, Map<String, String> owner,
+                               String url, Instant createdAt, PersonDto owner,
                                List<String> sharedEmails, boolean canManage) {
         static DocumentDto of(VaultDocument d, User viewer, HalaqaProperties props) {
             boolean owner = d.getOwner().getId().equals(viewer.getId());
             return new DocumentDto(d.getId(), d.getTitle(), d.getFolder(), d.getMimeType(), d.getSizeBytes(),
                     props.publicBaseUrl() + "/vault-files/" + d.getStoredFilename(), d.getCreatedAt(),
-                    Map.of("id", d.getOwner().getId(), "name", d.getOwner().getName()),
+                    PersonDto.of(d.getOwner()),
                     owner ? List.copyOf(d.getSharedEmails()) : List.of(), owner);
         }
     }

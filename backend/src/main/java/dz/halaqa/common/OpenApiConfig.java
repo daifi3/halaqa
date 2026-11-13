@@ -41,7 +41,9 @@ public class OpenApiConfig {
                                 live sessions (LiveKit), recordings and the document vault.
 
                                 **Authentication** — call `POST /api/auth/sign-in` (or sign-up), copy the \
-                                `token` from the response, then use **Authorize** above and paste it."""))
+                                `token` from the response, then use **Authorize** above and paste it.
+
+                                Access tokens are short-lived. When one expires, every call answers 401:                                 send the `refreshToken` to `POST /api/auth/refresh` to get a new pair.                                 Refresh tokens are single-use; once they expire too, sign in again."""))
                 .components(new Components().addSecuritySchemes(BEARER, new SecurityScheme()
                         .type(SecurityScheme.Type.HTTP)
                         .scheme("bearer")

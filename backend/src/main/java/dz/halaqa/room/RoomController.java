@@ -2,6 +2,7 @@ package dz.halaqa.room;
 
 import dz.halaqa.auth.AuthInterceptor;
 import dz.halaqa.auth.AuthRepositories;
+import dz.halaqa.auth.PersonDto;
 import dz.halaqa.auth.User;
 import dz.halaqa.course.Course;
 import dz.halaqa.course.CourseRepository;
@@ -53,17 +54,17 @@ public class RoomController {
     public enum StudentSource { invite, course, code }
 
     /** One row of a session's guest list. name/userId are null until the student signs up. */
-    public record StudentDto(String email, String name, String userId, Room.Rsvp status, StudentSource source) {}
+    public record StudentDto(String email, String name, String userId, String avatarUrl, Room.Rsvp status, StudentSource source) {}
 
     public record RoomDto(String id, String title, String subject, Instant startsAt, int durationMin, String joinCode,
-                          Map<String, String> teacher, List<String> invitedEmails, Room.Status status, boolean isRecording,
+                          PersonDto teacher, List<String> invitedEmails, Room.Status status, boolean isRecording,
                           String courseId, String courseTitle, Room.Rsvp myRsvp) {
         public static RoomDto of(Room r, User viewer) {
             boolean owner = r.getTeacher().getId().equals(viewer.getId());
             Course course = r.getCourse();
             return new RoomDto(r.getId(), r.getTitle(), r.getSubject(), r.getStartsAt(), r.getDurationMin(),
                     owner ? r.getJoinCode() : "", // only the teacher needs the code
-                    Map.of("id", r.getTeacher().getId(), "name", r.getTeacher().getName()),
+                    PersonDto.of(r.getTeacher()),
                     owner ? List.copyOf(r.getInvitedEmails()) : List.of(),
                     r.getStatus(), r.getActiveEgressId() != null,
                     course != null ? course.getId() : null,
@@ -180,7 +181,7 @@ public class RoomController {
         return sources.entrySet().stream().map(e -> {
             User u = byEmail.get(e.getKey());
             return new StudentDto(e.getKey(), u != null ? u.getName() : null, u != null ? u.getId() : null,
-                    room.rsvpOf(e.getKey()), e.getValue());
+                    u != null ? u.getAvatarUrl() : null, room.rsvpOf(e.getKey()), e.getValue());
         }).toList();
     }
 

@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '@/components/ui/button';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
+import { api } from '@/lib/api';
 import { authenticate, getBiometricSupport, methodLabel, type BiometricMethod } from '@/lib/biometrics';
 import { biometricRecordOf, useSecurityPrefs } from '@/store/security-prefs';
 import { useSession } from '@/store/session';
@@ -116,7 +117,6 @@ function EnableOffer({ method, onEnable, onSkip }: { method: BiometricMethod | n
  */
 export function BiometricGate() {
   const user = useSession((s) => s.user);
-  const signOut = useSession((s) => s.signOut);
   const record = useSecurityPrefs((s) => biometricRecordOf(s, user?.id));
   const enableBiometric = useSecurityPrefs((s) => s.enableBiometric);
   const markOffered = useSecurityPrefs((s) => s.markOffered);
@@ -180,7 +180,7 @@ export function BiometricGate() {
           name={user.name}
           method={record.method}
           onUnlocked={() => setLocked(false)}
-          onSignOut={() => { setLocked(false); signOut(); }}
+          onSignOut={() => { setLocked(false); void api.signOut(); }}
         />
       )}
     </>

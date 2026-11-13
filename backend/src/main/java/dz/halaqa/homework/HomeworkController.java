@@ -1,6 +1,7 @@
 package dz.halaqa.homework;
 
 import dz.halaqa.auth.AuthInterceptor;
+import dz.halaqa.auth.PersonDto;
 import dz.halaqa.auth.User;
 import dz.halaqa.common.FileStorage;
 import dz.halaqa.common.HalaqaProperties;
@@ -14,7 +15,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -34,14 +34,14 @@ public class HomeworkController {
             @NotNull Instant dueAt) {}
 
     public record HomeworkDto(String id, String courseId, String courseTitle, String title, String instructions,
-                              Instant dueAt, Instant createdAt, Map<String, String> teacher,
+                              Instant dueAt, Instant createdAt, PersonDto teacher,
                               /* Teacher only: how many students have handed in. */ Long submissionCount,
                               /* Student only: when they last handed in, or null. */ Instant mySubmittedAt) {}
 
     /** `uri` is a download URL, so the app can treat it like any other picked file. */
     public record AttachmentDto(String uri, String name, String mimeType, long size) {}
 
-    public record SubmissionDto(String id, String homeworkId, Map<String, String> student, String note,
+    public record SubmissionDto(String id, String homeworkId, PersonDto student, String note,
                                 AttachmentDto attachment, Instant submittedAt, boolean late) {}
 
     private final HomeworkRepositories.Assignments homework;
@@ -160,7 +160,7 @@ public class HomeworkController {
                 .map(HomeworkSubmission::getSubmittedAt).orElse(null);
         return new HomeworkDto(h.getId(), h.getCourse().getId(), h.getCourse().getTitle(), h.getTitle(),
                 h.getInstructions() == null ? "" : h.getInstructions(), h.getDueAt(), h.getCreatedAt(),
-                Map.of("id", h.getTeacher().getId(), "name", h.getTeacher().getName()),
+                PersonDto.of(h.getTeacher()),
                 owner ? submissions.countByHomeworkId(h.getId()) : null, mine);
     }
 
@@ -170,7 +170,7 @@ public class HomeworkController {
                 s.getMimeType() == null ? MediaType.APPLICATION_OCTET_STREAM_VALUE : s.getMimeType(),
                 s.getSizeBytes() == null ? 0 : s.getSizeBytes());
         return new SubmissionDto(s.getId(), s.getHomework().getId(),
-                Map.of("id", s.getStudent().getId(), "name", s.getStudent().getName()),
+                PersonDto.of(s.getStudent()),
                 s.getNote() == null ? "" : s.getNote(), attachment, s.getSubmittedAt(),
                 s.getSubmittedAt().isAfter(s.getHomework().getDueAt()));
     }

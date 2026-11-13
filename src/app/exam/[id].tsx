@@ -7,11 +7,15 @@ import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { prepareExamLockdown } from '@/components/exam/use-exam-lockdown';
 import { Button } from '@/components/ui/button';
-import { Avatar, Chip, EmptyState, IconButton, Skeleton } from '@/components/ui/misc';
+import { Chip, EmptyState, IconButton, PersonAvatar, Skeleton } from '@/components/ui/misc';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
 import { api } from '@/lib/api';
-import { attemptDeadline, examWindow, FINISH_LABEL, formatGrade, formatPoints, QUESTION_KINDS, scaleOf, scoreAttempt } from '@/lib/exam';
+import { ChoiceRow } from '@/components/ui/choice';
+import {
+  attemptDeadline, examWindow, FINISH_LABEL, formatGrade, formatPoints, gradingStatus, QUESTION_KINDS, scaleOf, scoreAttempt,
+  type GradingStatus,
+} from '@/lib/exam';
 import { exportGrades } from '@/lib/export-grades';
 import { formatDay, formatTime } from '@/lib/format';
 import type { Exam, ExamAttempt } from '@/lib/types';
@@ -33,18 +37,56 @@ function Tile({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; la
 
 function ScoreChip({ exam, attempt }: { exam: Exam; attempt: ExamAttempt }) {
   const { grade, scale, ungraded } = scoreAttempt(exam, attempt);
-  if (ungraded) return <Chip label="To grade" icon="create-outline" color={colors.student} bg={colors.studentSoft} />;
-  return <Chip label={`${formatGrade(grade)}/${scale}`} color={colors.success} bg={colors.successSoft} />;
+  if (ungraded) return <Chip label={`${ungraded} to grade`} icon="create-outline" color={colors.student} bg={colors.studentSoft} />;
+  if (!attempt.finalizedAt) return <Chip label={`${formatGrade(grade)}/${scale} · not final`} icon="hourglass-outline" color={colors.primary} bg={colors.primarySoft} />;
+  return <Chip label={`${formatGrade(grade)}/${scale}`} icon="checkmark-circle" color={colors.success} bg={colors.successSoft} />;
 }
+
+type Filter = 'all' | GradingStatus;
+const ORDER: GradingStatus[] = ['to_grade', 'ready', 'final'];
 
 /* ---------- Teacher ---------- */
 
-function TeacherView({ exam, attempts }: { exam: Exam; attempts: ExamAttempt[] }) {
+function TeacherView({ exam, attempts, onAttempts }: { exam: Exam; attempts: ExamAttempt[]; onAttempts: (a: ExamAttempt[]) => void }) {
   const finished = attempts.filter((a) => a.finish);
   const graded = finished.map((a) => scoreAttempt(exam, a)).filter((s) => !s.ungraded);
   const average = graded.length ? graded.reduce((s, x) => s + x.grade, 0) / graded.length : null;
   const toGrade = finished.length - graded.length;
   const [exporting, setExporting] = useState(false);
+  const statusOf = (a: ExamAttempt) => gradingStatus(exam, a);
+  const ready = finished.filter((a) => statusOf(a) === 'ready').length;
+  const final = finished.filter((a) => statusOf(a) === 'final').length;
+  // Start on what needs doing.
+  const [filter, setFilter] = useState<Filter>(() => (toGrade ? 'to_grade' : ready ? 'ready' : 'all'));
+  const [finalizing, setFinalizing] = useState(false);
+  const shown = finished
+    .filter((a) => filter === 'all' || statusOf(a) === filter)
+    .sort((a, b) => ORDER.indexOf(statusOf(a)) - ORDER.indexOf(statusOf(b)) || +new Date(a.finishedAt!) - +new Date(b.finishedAt!));
+
+  function finalizeAll() {
+    Alert.alert(
+      `Finalize ${ready} ${ready === 1 ? 'grade' : 'grades'}?`,
+      `${ready === 1 ? 'The student is' : 'Each student is'} notified and can see their grade. You can reopen a grade later to change it.`
+        + (toGrade ? ` ${toGrade} ${toGrade === 1 ? 'student' : 'students'} with written answers still to grade ${toGrade === 1 ? 'is' : 'are'} skipped.` : ''),
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Finalize',
+          onPress: () => {
+            setFinalizing(true);
+            api.finalizeAllExamAttempts(exam.id)
+              .then((all) => {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+                onAttempts(all);
+                setFilter('final');
+              })
+              .catch((e) => Alert.alert('Couldn’t finalize', e instanceof Error ? e.message : 'Please try again.'))
+              .finally(() => setFinalizing(false));
+          },
+        },
+      ],
+    );
+  }
 
   async function runExport() {
     setExporting(true);
@@ -99,9 +141,16 @@ function TeacherView({ exam, attempts }: { exam: Exam; attempts: ExamAttempt[] }
           <Text variant="title" color={toGrade ? colors.student : colors.ink}>{toGrade}</Text>
           <Text variant="small" color={colors.muted}>To grade</Text>
         </View>
+        <View style={styles.summaryStat}>
+          <Text variant="title" color={final ? colors.success : colors.ink}>{final}</Text>
+          <Text variant="small" color={colors.muted}>Final</Text>
+        </View>
       </Animated.View>
 
-      <Animated.View entering={FadeInDown.delay(170)}>
+      <Animated.View entering={FadeInDown.delay(170)} style={{ gap: 10 }}>
+        {ready > 0 && (
+          <Button title={`Finalize ${ready} graded`} icon="checkmark-done" accent={colors.success} loading={finalizing} onPress={finalizeAll} />
+        )}
         <Button
           title="Export grades (PDF)"
           variant="secondary"
@@ -110,16 +159,37 @@ function TeacherView({ exam, attempts }: { exam: Exam; attempts: ExamAttempt[] }
           disabled={finished.length === 0}
           onPress={exportPdf}
         />
+        {finished.length > 0 && (
+          <Text variant="small" color={colors.muted} style={{ textAlign: 'center' }}>
+            {toGrade + ready === 0 ? 'Every grade is final.' : 'Students see their grade once you finalize it. They’re notified then.'}
+          </Text>
+        )}
       </Animated.View>
 
       <Animated.View entering={FadeInDown.delay(200)} style={{ gap: 10 }}>
-        <Text variant="label" color={colors.muted}>Results</Text>
+        <Text variant="label" color={colors.muted}>Students who submitted</Text>
         {finished.length === 0 ? (
-          <Text color={colors.muted}>No one has submitted yet.</Text>
+          <Text color={colors.muted}>No one has submitted yet. You’ll get a notification when a student finishes.</Text>
         ) : (
-          finished.map((a) => (
+          <>
+          <ChoiceRow<Filter>
+            value={filter}
+            onChange={setFilter}
+            options={[
+              { value: 'to_grade', label: `To grade · ${toGrade}` },
+              { value: 'ready', label: `Ready · ${ready}` },
+              { value: 'final', label: `Final · ${final}` },
+              { value: 'all', label: `All · ${finished.length}` },
+            ]}
+          />
+          {shown.length === 0 && (
+            <Text color={colors.muted}>
+              {filter === 'to_grade' ? 'Nothing left to grade.' : filter === 'ready' ? 'No grades waiting to be finalized.' : 'No final grades yet.'}
+            </Text>
+          )}
+          {shown.map((a) => (
             <PressableScale key={a.id} scaleTo={0.98} onPress={() => router.push(`/exam/attempt/${a.id}` as Href)} style={styles.row}>
-              <Avatar name={a.student.name} size={36} />
+              <PersonAvatar person={a.student} size={36} />
               <View style={{ flex: 1, gap: 2 }}>
                 <Text variant="bodyStrong" numberOfLines={1}>{a.student.name}</Text>
                 <Text variant="small" color={a.finish === 'submitted' ? colors.muted : colors.student}>
@@ -129,7 +199,8 @@ function TeacherView({ exam, attempts }: { exam: Exam; attempts: ExamAttempt[] }
               <ScoreChip exam={exam} attempt={a} />
               <Ionicons name="chevron-forward" size={16} color={colors.muted} />
             </PressableScale>
-          ))
+          ))}
+          </>
         )}
       </Animated.View>
 
@@ -225,13 +296,15 @@ function StudentView({ exam, attempt }: { exam: Exam; attempt: ExamAttempt | nul
           <View style={styles.resultIcon}>
             <Ionicons name={attempt.finish ? 'checkmark-done' : 'hourglass-outline'} size={26} color="#fff" />
           </View>
-          {attempt.finish && exam.showResults ? (
+          {attempt.finish && (exam.showResults || attempt.finalizedAt) ? (
             <>
               <Text variant="display" color="#fff">{formatGrade(grade)}<Text variant="title" color="rgba(255,255,255,0.6)"> / {scale}</Text></Text>
-              <Text color="rgba(255,255,255,0.75)">
-                {ungraded
-                  ? `${ungraded} written ${ungraded === 1 ? 'answer is' : 'answers are'} still being graded`
-                  : `Final grade · ${earned} of ${formatPoints(total)}`}
+              <Text color="rgba(255,255,255,0.75)" style={{ textAlign: 'center' }}>
+                {attempt.finalizedAt
+                  ? `Final grade · ${earned} of ${formatPoints(total)}`
+                  : ungraded
+                    ? `${ungraded} written ${ungraded === 1 ? 'answer is' : 'answers are'} still being graded`
+                    : 'Not final yet · your teacher will confirm it'}
               </Text>
             </>
           ) : (
@@ -240,13 +313,15 @@ function StudentView({ exam, attempt }: { exam: Exam; attempt: ExamAttempt | nul
             </Text>
           )}
           <Text variant="small" color="rgba(255,255,255,0.6)">
-            {attempt.finish ? `${FINISH_LABEL[attempt.finish]} · ${when(attempt.finishedAt!)}` : 'This attempt can’t be reopened'}
+            {attempt.finalizedAt
+              ? `Graded ${when(attempt.finalizedAt)}`
+              : attempt.finish ? `${FINISH_LABEL[attempt.finish]} · ${when(attempt.finishedAt!)}` : 'This attempt can’t be reopened'}
           </Text>
         </View>
         {attempt.finish && exam.showResults ? (
           <Button title="Review my answers" variant="secondary" icon="eye-outline" onPress={() => router.push(`/exam/attempt/${attempt.id}` as Href)} />
-        ) : attempt.finish ? (
-          <Text color={colors.muted} style={{ textAlign: 'center' }}>Your teacher will share the results.</Text>
+        ) : attempt.finish && !attempt.finalizedAt ? (
+          <Text color={colors.muted} style={{ textAlign: 'center' }}>You’ll get a notification when your teacher releases your grade.</Text>
         ) : null}
       </Animated.View>
     );
@@ -289,7 +364,7 @@ export default function ExamDetails() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const me = useSession((s) => s.user)!;
   // Reloads every time the screen gains focus (see useQuery).
-  const { data, loading, error } = useQuery(async () => {
+  const { data, loading, error, setData } = useQuery(async () => {
     let exam = await api.getExam(id);
     const owner = exam.teacher.id === me.id;
     const attempts = owner ? await api.listExamAttempts(id) : [];
@@ -347,7 +422,7 @@ export default function ExamDetails() {
         </Animated.View>
 
         {owner ? (
-          <TeacherView exam={exam} attempts={data?.attempts ?? []} />
+          <TeacherView exam={exam} attempts={data?.attempts ?? []} onAttempts={(attempts) => setData((d) => d && { ...d, attempts })} />
         ) : me.role === 'student' ? (
           <StudentView exam={exam} attempt={exam.myAttempt} />
         ) : (

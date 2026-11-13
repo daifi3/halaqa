@@ -2,11 +2,14 @@ package dz.halaqa.livekit;
 
 import dz.halaqa.auth.User;
 import dz.halaqa.common.HalaqaProperties;
+import dz.halaqa.common.Json;
 import dz.halaqa.room.Room;
 import io.livekit.server.*;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import livekit.LivekitEgress;
 import livekit.LivekitModels;
 import org.springframework.http.HttpStatus;
@@ -39,8 +42,11 @@ public class LiveKitService {
         AccessToken token = new AccessToken(cfg.apiKey(), cfg.apiSecret());
         token.setIdentity(user.getId());
         token.setName(user.getName());
-        // The app reads this to show the teacher badge on tiles.
-        token.setMetadata("{\"role\":\"" + user.getRole().name() + "\"}");
+        // The app reads this for the teacher badge and the profile picture on tiles.
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("role", user.getRole().name());
+        if (user.getAvatarUrl() != null) metadata.put("avatarUrl", user.getAvatarUrl());
+        token.setMetadata(Json.write(metadata));
         token.addGrants(
                 new RoomJoin(true),
                 new RoomName(room.livekitName()),

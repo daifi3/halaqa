@@ -8,7 +8,7 @@ import Animated, { FadeInDown, FadeInUp, LinearTransition } from 'react-native-r
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { JoinQrPanel } from '@/components/qr-code';
 import { Button } from '@/components/ui/button';
-import { Avatar, EmptyState, IconButton, PulseDot, Skeleton } from '@/components/ui/misc';
+import { EmptyState, IconButton, PersonAvatar, PulseDot, Skeleton } from '@/components/ui/misc';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
 import { api } from '@/lib/api';
@@ -170,7 +170,7 @@ export default function RoomDetails() {
               <Text variant="label" color={colors.primary}>{room.subject}</Text>
               <Text variant="display">{room.title}</Text>
               <View style={styles.teacherRow}>
-                <Avatar name={room.teacher.name} size={32} />
+                <PersonAvatar person={room.teacher} size={32} />
                 <Text color={colors.inkSoft}>with {room.teacher.name}</Text>
               </View>
             </Animated.View>

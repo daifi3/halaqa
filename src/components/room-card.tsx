@@ -4,7 +4,7 @@ import Animated, { FadeInDown, LinearTransition } from 'react-native-reanimated'
 import { formatDay, formatTime } from '@/lib/format';
 import type { Room } from '@/lib/types';
 import { colors, radius, shadow } from '@/theme';
-import { Avatar, Chip, PulseDot } from './ui/misc';
+import { Chip, PersonAvatar, PulseDot } from './ui/misc';
 import { PressableScale } from './ui/pressable-scale';
 import { Text } from './ui/text';
 
@@ -35,7 +35,7 @@ export function RoomCard({ room, index, onPress }: { room: Room; index: number; 
 
         <View style={styles.bottom}>
           <View style={styles.teacher}>
-            <Avatar name={room.teacher.name} size={28} />
+            <PersonAvatar person={room.teacher} size={28} />
             <Text variant="small" color={live ? 'rgba(255,255,255,0.8)' : colors.inkSoft}>{room.teacher.name}</Text>
           </View>
           <View style={[styles.go, live && { backgroundColor: '#fff' }]}>

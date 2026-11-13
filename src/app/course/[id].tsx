@@ -11,10 +11,11 @@ import { HomeworkCard } from '@/components/homework-card';
 import { JoinQrPanel } from '@/components/qr-code';
 import { RoomCard } from '@/components/room-card';
 import { Input } from '@/components/ui/input';
-import { Avatar, EmptyState, IconButton, Skeleton } from '@/components/ui/misc';
+import { Avatar, EmptyState, IconButton, PersonAvatar, Skeleton } from '@/components/ui/misc';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
 import { api } from '@/lib/api';
+import { pendingGrades } from '@/lib/exam';
 import { isValidEmail } from '@/lib/format';
 import { useQuery } from '@/lib/use-query';
 import { useSession } from '@/store/session';
@@ -81,7 +82,7 @@ export default function CourseDetails() {
             <Text variant="display">{course.title}</Text>
             {!!course.description && <Text color={colors.inkSoft}>{course.description}</Text>}
             <View style={styles.teacherRow}>
-              <Avatar name={course.teacher.name} size={32} />
+              <PersonAvatar person={course.teacher} size={32} />
               <Text color={colors.inkSoft}>with {course.teacher.name}</Text>
             </View>
           </Animated.View>
@@ -206,6 +207,7 @@ export default function CourseDetails() {
                   onPress={() => router.push(`/exam/${exam.id}` as Href)}
                   attempt={teacher ? undefined : exam.myAttempt ?? undefined}
                   submissionCount={teacher ? exam.submissionCount ?? 0 : undefined}
+                  pending={teacher ? pendingGrades(exam) : undefined}
                 />
               ))
             )}

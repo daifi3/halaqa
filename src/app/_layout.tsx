@@ -14,6 +14,7 @@ import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { BiometricGate } from '@/components/biometric-gate';
+import { InboxBanner } from '@/components/inbox';
 import { useSecurityPrefs } from '@/store/security-prefs';
 import { useSession } from '@/store/session';
 import { colors } from '@/theme';
@@ -77,6 +78,7 @@ export default function RootLayout() {
             <Stack.Screen name="vault/index" />
             <Stack.Screen name="vault/[id]" />
             <Stack.Screen name="vault/upload" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+            <Stack.Screen name="viewer" options={{ presentation: 'fullScreenModal', animation: 'fade', contentStyle: { backgroundColor: '#000' } }} />
             <Stack.Screen name="change-password" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
             <Stack.Screen name="homework/new" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
             <Stack.Screen name="homework/[id]" />
@@ -85,8 +87,10 @@ export default function RootLayout() {
             <Stack.Screen name="exam/take/[id]" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom', gestureEnabled: false }} />
             <Stack.Screen name="exam/attempt/[id]" />
             <Stack.Screen name="notifications" />
+            <Stack.Screen name="inbox" />
           </Stack.Protected>
         </Stack>
+        <InboxBanner />
         <BiometricGate />
       </SafeAreaProvider>
     </GestureHandlerRootView>

@@ -17,13 +17,15 @@ import type { TileInfo } from './participant-tile';
 import type { ScreenCapture } from './use-screen-share';
 import { Stage, type ConnectionState } from './stage';
 
-const roleOf = (p: Participant) => {
+/** Set by the backend when it issues the LiveKit token. */
+const metadataOf = (p: Participant): { role?: string; avatarUrl?: string } => {
   try {
-    return (JSON.parse(p.metadata || '{}') as { role?: string }).role;
+    return JSON.parse(p.metadata || '{}');
   } catch {
-    return undefined;
+    return {};
   }
 };
+const roleOf = (p: Participant) => metadataOf(p).role;
 
 const mapState = (s: LkState): ConnectionState =>
   s === LkState.Connected ? 'connected'
@@ -163,6 +165,7 @@ export function LiveStage({ room, isTeacher, onLeave }: { room: Room; isTeacher:
     return {
       key: p.identity,
       name: p.name || p.identity,
+      avatarUrl: metadataOf(p).avatarUrl ?? null,
       isLocal: p.isLocal,
       isTeacher: p.isLocal ? isTeacher : roleOf(p) === 'teacher',
       speaking: speakingIds.has(p.identity),

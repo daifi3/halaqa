@@ -3,6 +3,7 @@ package dz.halaqa.auth;
 import dz.halaqa.common.FileStorage;
 import dz.halaqa.common.HalaqaProperties;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -10,6 +11,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.Instant;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -18,7 +20,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
-@Tag(name = "Auth", description = "Sign up, sign in, profile picture and password.")
+@Tag(name = "Auth", description = "Sign up, sign in, token refresh, sign out, profile picture and password.")
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
@@ -39,17 +41,26 @@ public class AuthController {
         static UserDto of(User u) { return new UserDto(u.getId(), u.getName(), u.getEmail(), u.getRole(), u.getAvatarUrl()); }
     }
 
-    public record AuthResponse(UserDto user, String token) {}
+    public record RefreshRequest(@NotBlank String refreshToken) {}
+
+    /**
+     * token: short-lived access token for "Authorization: Bearer". refreshToken: single-use,
+     * long-lived; trade it at /refresh for a new pair once the access token stops working.
+     */
+    public record AuthResponse(UserDto user, String token, Instant expiresAt, String refreshToken, Instant refreshExpiresAt) {}
 
     private final AuthRepositories.Users users;
     private final AuthRepositories.Tokens tokens;
+    private final AuthRepositories.RefreshTokens refreshTokens;
     private final FileStorage storage;
     private final HalaqaProperties props;
     private final PasswordEncoder encoder = new BCryptPasswordEncoder();
 
-    public AuthController(AuthRepositories.Users users, AuthRepositories.Tokens tokens, FileStorage storage, HalaqaProperties props) {
+    public AuthController(AuthRepositories.Users users, AuthRepositories.Tokens tokens,
+                          AuthRepositories.RefreshTokens refreshTokens, FileStorage storage, HalaqaProperties props) {
         this.users = users;
         this.tokens = tokens;
+        this.refreshTokens = refreshTokens;
         this.storage = storage;
         this.props = props;
     }
@@ -62,8 +73,7 @@ public class AuthController {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "An account with this email already exists");
         }
         User user = users.save(new User(req.name().trim(), email, req.role(), encoder.encode(req.password())));
-        AuthToken token = tokens.save(new AuthToken(user));
-        return new AuthResponse(UserDto.of(user), token.getToken());
+        return issueTokens(user);
     }
 
     @PostMapping("/sign-in")
@@ -75,8 +85,41 @@ public class AuthController {
         if (!encoder.matches(req.password(), user.getPasswordHash())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password");
         }
-        AuthToken token = tokens.save(new AuthToken(user));
-        return new AuthResponse(UserDto.of(user), token.getToken());
+        return issueTokens(user);
+    }
+
+    /** Trades a refresh token for a new access + refresh token pair. The old refresh token stops working. */
+    @PostMapping("/refresh")
+    @Transactional
+    public AuthResponse refresh(@Valid @RequestBody RefreshRequest req) {
+        RefreshToken current = refreshTokens.findById(req.refreshToken()).orElseThrow(AuthController::sessionExpired);
+        if (current.isExpired()) throw sessionExpired();
+        // Single use: when two refreshes race with the same token, only the first one wins.
+        if (refreshTokens.consume(current.getToken()) == 0) throw sessionExpired();
+        return issueTokens(current.getUser());
+    }
+
+    /** Revokes the refresh token (and the access token in the Authorization header, if any). Always succeeds. */
+    @PostMapping("/sign-out")
+    @Transactional
+    public void signOut(@RequestBody(required = false) RefreshRequest req, HttpServletRequest http) {
+        if (req != null && req.refreshToken() != null) refreshTokens.consume(req.refreshToken());
+        String header = http.getHeader("Authorization");
+        if (header != null && header.startsWith("Bearer ")) tokens.deleteById(header.substring(7));
+    }
+
+    private AuthResponse issueTokens(User user) {
+        Instant now = Instant.now();
+        tokens.deleteExpired(user, now);
+        refreshTokens.deleteExpired(user, now);
+        AuthToken access = tokens.save(new AuthToken(user, props.auth().accessTokenTtl()));
+        RefreshToken refresh = refreshTokens.save(new RefreshToken(user, props.auth().refreshTokenTtl()));
+        return new AuthResponse(UserDto.of(user), access.getToken(), access.getExpiresAt(),
+                refresh.getToken(), refresh.getExpiresAt());
+    }
+
+    private static ResponseStatusException sessionExpired() {
+        return new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Your session has expired. Please sign in again.");
     }
 
     @PostMapping("/me/avatar")

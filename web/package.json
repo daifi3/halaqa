@@ -1,0 +1,35 @@
+{
+  "name": "halaqa-web",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "icons": "node scripts/gen-icons.mjs",
+    "dev": "npm run icons && vite",
+    "build": "npm run icons && tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "npm run icons && tsc -b"
+  },
+  "dependencies": {
+    "@fontsource/plus-jakarta-sans": "^5.2.8",
+    "@livekit/components-react": "^2.9.25",
+    "@mdi/js": "^7.4.47",
+    "ionicons": "^8.1.0",
+    "jsqr": "^1.4.0",
+    "livekit-client": "^2.23.0",
+    "mathjax-full": "^3.2.1",
+    "qrcode-generator": "^2.0.4",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router": "^7.15.0",
+    "tslib": "^2.8.1",
+    "zustand": "^5.0.16"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "~5.9.3",
+    "vite": "^7.1.0"
+  }
+}

@@ -8,7 +8,9 @@ export type NotificationKey =
   | 'homeworkDue'
   | 'courseInvites'
   | 'documentsShared'
-  | 'recordingsReady';
+  | 'recordingsReady'
+  | 'examSubmissions'
+  | 'examGrades';
 
 type Prefs = Record<NotificationKey, boolean>;
 
@@ -26,6 +28,8 @@ const DEFAULT_PREFS: Prefs = {
   courseInvites: true,
   documentsShared: true,
   recordingsReady: false,
+  examSubmissions: true,
+  examGrades: true,
 };
 
 export const useNotificationPrefs = create<NotificationPrefsState>()(
@@ -39,6 +43,11 @@ export const useNotificationPrefs = create<NotificationPrefsState>()(
     {
       name: 'halaqa-notification-prefs',
       storage: createJSONStorage(() => AsyncStorage),
+      // Settings added later (exam alerts) start at their default instead of off.
+      merge: (saved, current) => {
+        const s = (saved ?? {}) as Partial<NotificationPrefsState>;
+        return { ...current, ...s, prefs: { ...DEFAULT_PREFS, ...s.prefs } };
+      },
     },
   ),
 );

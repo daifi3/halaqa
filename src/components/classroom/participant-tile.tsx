@@ -4,14 +4,16 @@ import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
   FadeIn, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming, ZoomIn,
 } from 'react-native-reanimated';
-import { Avatar } from '@/components/ui/misc';
+import { PersonAvatar } from '@/components/ui/misc';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
 import { colors, radius } from '@/theme';
 
 export interface TileInfo {
+  /** The participant's user id (their LiveKit identity). */
   key: string;
   name: string;
+  avatarUrl?: string | null;
   isLocal: boolean;
   isTeacher: boolean;
   speaking: boolean;
@@ -51,7 +53,7 @@ export function ParticipantTile({ tile, compact, onMute, style }: {
       ) : (
         <View style={styles.center}>
           <SpeakingRing active={tile.speaking} size={avatar + 16} />
-          <Avatar name={tile.name} size={avatar} />
+          <PersonAvatar person={{ id: tile.key, name: tile.name, avatarUrl: tile.avatarUrl }} size={avatar} />
         </View>
       )}
 

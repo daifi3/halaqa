@@ -26,8 +26,8 @@ export default function LogIn() {
     setLoading(true);
     setError(null);
     try {
-      const { user, token } = await api.logIn({ email: email.trim().toLowerCase(), password });
-      setSession(user, token); // Protected routes switch to the app automatically.
+      const session = await api.logIn({ email: email.trim().toLowerCase(), password });
+      setSession(session); // Protected routes switch to the app automatically.
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not log in');
     } finally {

@@ -9,7 +9,7 @@ import { EmptyState, Skeleton } from '@/components/ui/misc';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
 import { api } from '@/lib/api';
-import { examWindow } from '@/lib/exam';
+import { examWindow, pendingGrades } from '@/lib/exam';
 import type { Exam } from '@/lib/types';
 import { useQuery } from '@/lib/use-query';
 import { useSession } from '@/store/session';
@@ -53,6 +53,7 @@ export default function Exams() {
       onPress={() => router.push(`/exam/${exam.id}` as Href)}
       attempt={teacher ? undefined : exam.myAttempt ?? undefined}
       submissionCount={teacher ? exam.submissionCount ?? 0 : undefined}
+      pending={teacher ? pendingGrades(exam) : undefined}
     />
   );
 

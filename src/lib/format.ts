@@ -58,3 +58,14 @@ export function formatBytes(bytes: number) {
   }
   return `${value.toFixed(value < 10 ? 1 : 0)} ${units[i]}`;
 }
+
+/** "just now", "5 min ago", "3 h ago", "yesterday", then the day. */
+export function timeAgo(iso: string, now = Date.now()) {
+  const min = Math.floor((now - +new Date(iso)) / 60_000);
+  if (min < 1) return 'just now';
+  if (min < 60) return `${min} min ago`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h} h ago`;
+  if (h < 48) return 'yesterday';
+  return formatDay(iso);
+}

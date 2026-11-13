@@ -1,8 +1,11 @@
 import { Tabs } from 'expo-router/js-tabs';
 import { TabBar } from '@/components/tab-bar';
+import { useNotifications } from '@/lib/push';
 import { colors } from '@/theme';
 
 export default function TabsLayout() {
+  // Signed in: keep the bell fresh, register for pushes, open tapped notifications.
+  useNotifications();
   return (
     <Tabs
       tabBar={(props) => <TabBar {...props} />}

@@ -17,6 +17,7 @@ const SEED_ATTEMPTS: ExamAttempt[] = [
     id: 'at1', examId: 'ex3', student: { id: 's-demo', name: 'Yasmine Bensalem' },
     startedAt: inHours(-180), finishedAt: inHours(-179.9), finish: 'submitted',
     answers: { q1: 1, q2: 0, q3: 'Bubble sort compares every pair of neighbours on each pass.' }, writtenGrades: { q3: 2 },
+    finalizedAt: inHours(-140),
   },
   {
     id: 'at2', examId: 'ex3', student: { id: 's-karim', name: 'Karim Haddad' },
@@ -42,6 +43,8 @@ interface ExamsState {
   /** Locks the attempt for good — there is no way back in afterwards. */
   finish: (attemptId: string, how: ExamFinish) => void;
   grade: (attemptId: string, questionId: string, points: number) => void;
+  /** Finalizes the grade (releasing it to the student), or reopens it with null. */
+  setFinalized: (attemptId: string, at: string | null) => void;
   // Like the homework store: select the raw arrays and derive lists with useMemo —
   // a selector that filters returns a fresh array every read and loops forever.
   // attemptOf is safe to select: .find() returns an existing element.
@@ -128,6 +131,10 @@ export const useExamsStore = create<ExamsState>()(
       grade: (attemptId, questionId, points) => set((s) => ({
         attempts: s.attempts.map((a) =>
           a.id === attemptId ? { ...a, writtenGrades: { ...a.writtenGrades, [questionId]: points } } : a),
+      })),
+
+      setFinalized: (attemptId, at) => set((s) => ({
+        attempts: s.attempts.map((a) => (a.id === attemptId ? { ...a, finalizedAt: at } : a)),
       })),
 
       attemptOf: (examId, studentId) => get().attempts.find((a) => a.examId === examId && a.student.id === studentId),

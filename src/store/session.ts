@@ -1,14 +1,19 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import type { User } from '@/lib/types';
+import type { AuthSession, User } from '@/lib/types';
 
 interface SessionState {
   user: User | null;
+  /** Short-lived access token sent as "Authorization: Bearer". */
   token: string | null;
+  /** Single-use token that buys a new access + refresh pair when the access token expires. */
+  refreshToken: string | null;
   hydrated: boolean;
-  setSession: (user: User, token: string) => void;
+  setSession: (session: AuthSession) => void;
+  setTokens: (token: string, refreshToken: string) => void;
   updateUser: (user: User) => void;
+  /** Clears the session locally. Prefer `api.signOut()`, which also revokes the tokens on the server. */
   signOut: () => void;
 }
 
@@ -17,15 +22,17 @@ export const useSession = create<SessionState>()(
     (set) => ({
       user: null,
       token: null,
+      refreshToken: null,
       hydrated: false,
-      setSession: (user, token) => set({ user, token }),
+      setSession: ({ user, token, refreshToken }) => set({ user, token, refreshToken }),
+      setTokens: (token, refreshToken) => set({ token, refreshToken }),
       updateUser: (user) => set({ user }),
-      signOut: () => set({ user: null, token: null }),
+      signOut: () => set({ user: null, token: null, refreshToken: null }),
     }),
     {
       name: 'halaqa-session',
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: ({ user, token }) => ({ user, token }),
+      partialize: ({ user, token, refreshToken }) => ({ user, token, refreshToken }),
       onRehydrateStorage: () => () => useSession.setState({ hydrated: true }),
     },
   ),

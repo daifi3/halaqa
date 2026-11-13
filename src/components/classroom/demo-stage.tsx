@@ -48,7 +48,7 @@ export function DemoStage({ room, isTeacher, onLeave }: { room: Room; isTeacher:
 
   const others = isTeacher ? CLASSMATES : [room.teacher.name, ...CLASSMATES.slice(0, 2)];
   const tiles: TileInfo[] = [
-    { key: 'me', name: user.name, isLocal: true, isTeacher, speaking: mic && speaker === -1, micOn: mic },
+    { key: 'me', name: user.name, avatarUrl: user.avatarUrl, isLocal: true, isTeacher, speaking: mic && speaker === -1, micOn: mic },
     ...others.map((name, i) => ({
       key: name, name, isLocal: false, isTeacher: !isTeacher && i === 0,
       speaking: speaker === i && !muted.has(name), micOn: i !== 2 && !muted.has(name),

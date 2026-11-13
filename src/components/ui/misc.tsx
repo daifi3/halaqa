@@ -6,6 +6,8 @@ import Animated, {
   Easing, FadeIn, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming,
 } from 'react-native-reanimated';
 import { initials } from '@/lib/format';
+import type { Person } from '@/lib/types';
+import { useSession } from '@/store/session';
 import { colors, radius } from '@/theme';
 import { PressableScale } from './pressable-scale';
 import { Text } from './text';
@@ -34,6 +36,17 @@ export function Avatar({ name, size = 40, ring, uri }: { name: string; size?: nu
       )}
     </View>
   );
+}
+
+/**
+ * Avatar for a person from server data. When it's the signed-in user, their name
+ * and picture come from the session instead, so a new profile picture shows up on
+ * every screen at once, without waiting for the next fetch.
+ */
+export function PersonAvatar({ person, size, ring }: { person: Person; size?: number; ring?: string }) {
+  const me = useSession((s) => (s.user && s.user.id === person.id ? s.user : null));
+  const shown = me ?? person;
+  return <Avatar name={shown.name} size={size} ring={ring} uri={shown.avatarUrl} />;
 }
 
 /* ---------- Chip ---------- */

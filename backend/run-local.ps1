@@ -25,7 +25,8 @@ if ($inUse) {
 
 $env:SERVER_ADDRESS = $ip
 $env:SERVER_PORT = "$port"
-$env:PUBLIC_BASE_URL = "http://${ip}:$port"
+# Keep a public URL set by the caller (e.g. a tunnel from scripts/cloud-dev.ps1).
+if (-not $env:PUBLIC_BASE_URL) { $env:PUBLIC_BASE_URL = "http://${ip}:$port" }
 $env:LIVEKIT_WS_URL = "ws://${ip}:7880"
 
 Write-Host ''

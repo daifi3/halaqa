@@ -20,5 +20,10 @@ public final class ExamRepositories {
         List<ExamAttempt> findByExamIdOrderByStartedAtDesc(String examId);
 
         long countByExamIdAndFinishIsNotNull(String examId);
+
+        long countByExamIdAndFinalizedAtIsNotNull(String examId);
+
+        /** Attempts still running — the sweeper closes the overdue ones. */
+        List<ExamAttempt> findByFinishIsNull();
     }
 }

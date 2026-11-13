@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { BellButton } from '@/components/inbox';
 import { RoomCard } from '@/components/room-card';
 import { Avatar, EmptyState, Skeleton } from '@/components/ui/misc';
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -61,9 +62,12 @@ export default function Home() {
             <Text color={colors.muted}>{greeting()},</Text>
             <Text variant="title">{user.name.split(' ')[0]}</Text>
           </View>
-          <PressableScale onPress={() => router.push('/profile')}>
-            <Avatar name={user.name} size={46} ring={teacher ? colors.teacher : colors.student} />
-          </PressableScale>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <BellButton />
+            <PressableScale onPress={() => router.push('/profile')}>
+              <Avatar name={user.name} size={46} ring={teacher ? colors.teacher : colors.student} uri={user.avatarUrl} />
+            </PressableScale>
+          </View>
         </Animated.View>
 
         <ActionCard teacher={teacher} />

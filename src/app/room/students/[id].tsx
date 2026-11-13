@@ -25,7 +25,7 @@ function StudentRow({ student, index }: { student: RoomStudent; index: number })
   const s = RSVP_STYLE[student.status];
   return (
     <Animated.View entering={FadeInDown.delay(60 + index * 40)} layout={LinearTransition.springify()} style={styles.row}>
-      <Avatar name={student.name ?? student.email} size={40} />
+      <Avatar name={student.name ?? student.email} size={40} uri={student.avatarUrl} />
       <View style={{ flex: 1, gap: 2 }}>
         <Text variant="bodyStrong" numberOfLines={1}>{student.name ?? student.email}</Text>
         <Text variant="small" color={colors.muted} numberOfLines={1}>

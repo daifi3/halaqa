@@ -10,7 +10,10 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
-/** A student's single attempt at an exam. Once finished it never changes, except for the teacher's grades. */
+/**
+ * A student's single attempt at an exam. Once finished the answers never change; the teacher
+ * grades the written ones, then finalizes the attempt, which releases the grade to the student.
+ */
 @Entity
 @Table(name = "exam_attempts",
         uniqueConstraints = @UniqueConstraint(columnNames = {"exam_id", "student_id"}))
@@ -48,6 +51,9 @@ public class ExamAttempt {
     @Column(nullable = false, length = 20_000)
     private String writtenGradesJson = "{}";
 
+    /** When the teacher finalized the grade. Grades are locked while it's set. */
+    private Instant finalizedAt;
+
     protected ExamAttempt() {}
 
     public ExamAttempt(Exam exam, User student) {
@@ -71,12 +77,20 @@ public class ExamAttempt {
         return true;
     }
 
-    public void finish(Finish how, Instant now) {
-        if (isFinished()) return;
+    /** Ends the attempt. True if this call ended it, false if it had already ended. */
+    public boolean finish(Finish how, Instant now) {
+        if (isFinished()) return false;
         boolean late = now.isAfter(deadline());
         finish = late ? Finish.time_up : how;
         finishedAt = late ? deadline() : now;
+        return true;
     }
+
+    public boolean isFinalized() { return finalizedAt != null; }
+
+    public void finalizeGrade(Instant now) { finalizedAt = now; }
+
+    public void reopenGrade() { finalizedAt = null; }
 
     public Map<String, Object> getAnswers() { return Json.read(answersJson, ANSWERS); }
 
@@ -101,4 +115,5 @@ public class ExamAttempt {
     public Instant getStartedAt() { return startedAt; }
     public Instant getFinishedAt() { return finishedAt; }
     public Finish getFinish() { return finish; }
+    public Instant getFinalizedAt() { return finalizedAt; }
 }

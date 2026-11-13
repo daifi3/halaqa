@@ -8,6 +8,18 @@ export interface User {
   avatarUrl?: string | null;
 }
 
+/** Someone shown next to a course, session, document, submission or attempt. */
+export type Person = Pick<User, 'id' | 'name' | 'avatarUrl'>;
+
+/** What sign-up, sign-in and token refresh return. */
+export interface AuthSession {
+  user: User;
+  /** Short-lived access token. */
+  token: string;
+  /** Single-use token that buys a new pair at /auth/refresh. */
+  refreshToken: string;
+}
+
 export type RoomStatus = 'scheduled' | 'live' | 'ended';
 
 /** A student's answer to a session invite. Joining with the code counts as accepting. */
@@ -22,7 +34,7 @@ export interface Room {
   durationMin: number;
   /** 6-letter code students type to join */
   joinCode: string;
-  teacher: Pick<User, 'id' | 'name'>;
+  teacher: Person;
   invitedEmails: string[];
   status: RoomStatus;
   isRecording: boolean;
@@ -39,6 +51,7 @@ export interface RoomStudent {
   /** Null until the student has signed up for an account. */
   name: string | null;
   userId: string | null;
+  avatarUrl?: string | null;
   status: RsvpStatus;
   /** How they got on the list: invited to this session, via the course roster, or joined with the code. */
   source: 'invite' | 'course' | 'code';
@@ -51,7 +64,7 @@ export interface Course {
   description: string;
   /** 6-letter code students type to enrol */
   joinCode: string;
-  teacher: Pick<User, 'id' | 'name'>;
+  teacher: Person;
   /** Standing roster — visible to the teacher only. */
   invitedEmails: string[];
   /** Students who joined with the code (count only; the roster above is the real guest list). */
@@ -117,7 +130,7 @@ export interface VaultDocument {
   url: string;
   /** ISO date-time */
   createdAt: string;
-  owner: Pick<User, 'id' | 'name'>;
+  owner: Person;
   /** Only populated for the owner; empty for people it's shared with. */
   sharedEmails: string[];
   /** True if the viewer is the owner (can rename, share, delete). */
@@ -139,7 +152,7 @@ export interface Homework {
   dueAt: string;
   /** ISO date-time */
   createdAt: string;
-  teacher: Pick<User, 'id' | 'name'>;
+  teacher: Person;
   /** Teacher only: how many students have handed in. */
   submissionCount?: number | null;
   /** Student only: when they last handed in (ISO), or null. */
@@ -152,7 +165,7 @@ export type Attachment = PickedFile & { size: number };
 export interface HomeworkSubmission {
   id: string;
   homeworkId: string;
-  student: Pick<User, 'id' | 'name'>;
+  student: Person;
   note: string;
   attachment: Attachment | null;
   /** ISO date-time */
@@ -207,13 +220,15 @@ export interface Exam {
   /** Always set, even when `questions` is withheld. */
   questionCount: number;
   totalPoints: number;
-  teacher: Pick<User, 'id' | 'name'>;
+  teacher: Person;
   /** ISO date-time */
   createdAt: string;
   /** Student only: their attempt, if they've started. */
   myAttempt?: ExamAttempt | null;
   /** Teacher only: finished attempts. */
   submissionCount?: number | null;
+  /** Teacher only: attempts whose grade is final. */
+  finalizedCount?: number | null;
 }
 
 export interface ExamScore {
@@ -235,7 +250,7 @@ export type ExamFinish = 'submitted' | 'time_up' | 'left';
 export interface ExamAttempt {
   id: string;
   examId: string;
-  student: Pick<User, 'id' | 'name'>;
+  student: Person;
   /** ISO date-time */
   startedAt: string;
   /** ISO date-time — null while the student is still answering. */
@@ -246,8 +261,10 @@ export interface ExamAttempt {
   writtenGrades: Record<string, number>;
   /** ISO date-time the attempt must end — from the server. */
   deadline?: string;
-  /** From the server: null for a student until their results are released. */
+  /** From the server: null for a student until their results are released or their grade is final. */
   score?: ExamScore | null;
+  /** ISO date-time the teacher finalized the grade (it's then released to the student); null until then. */
+  finalizedAt?: string | null;
 }
 
 /** What a teacher sends to create an exam. */
@@ -257,7 +274,7 @@ export type NewExamInput = Pick<
 >;
 
 /** An exam as demo mode keeps it on the device — the server-computed fields are derived on read. */
-export type StoredExam = Omit<Exam, 'questionCount' | 'totalPoints' | 'myAttempt' | 'submissionCount'>;
+export type StoredExam = Omit<Exam, 'questionCount' | 'totalPoints' | 'myAttempt' | 'submissionCount' | 'finalizedCount'>;
 
 /** A class chat message as the server stores it. `at` is epoch milliseconds. */
 export interface StoredChatMessage {
@@ -267,4 +284,26 @@ export interface StoredChatMessage {
   teacher: boolean;
   text: string;
   at: number;
+}
+
+/* ---------- Notifications (the bell) ---------- */
+
+export type NotificationKind = 'exam_submitted' | 'exam_graded';
+
+export interface AppNotification {
+  id: string;
+  kind: NotificationKind;
+  title: string;
+  body: string | null;
+  /** The screen it opens, e.g. /exam/attempt/{id} — the same path in both apps. */
+  link: string | null;
+  /** ISO date-time */
+  createdAt: string;
+  /** ISO date-time — null while unread. */
+  readAt: string | null;
+}
+
+export interface Inbox {
+  items: AppNotification[];
+  unread: number;
 }

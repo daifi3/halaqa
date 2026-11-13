@@ -1,0 +1,20 @@
+{
+  "defaultPlatform": "ios",
+  "platforms": {
+    "ios": {
+      "build": {
+        "profiles": {
+          "development": {
+            "command": "npm ci && npx expo prebuild --platform ios && xcodebuild -workspace ios/Halaqa.xcworkspace -scheme Halaqa -configuration Debug -sdk iphonesimulator -derivedDataPath ios/build CODE_SIGN_IDENTITY=-",
+            "artifact": "ios/build/Build/Products/Debug-iphonesimulator/*.app"
+          },
+          "preview": {
+            "command": "npm ci && npx expo prebuild --platform ios && xcodebuild -workspace ios/Halaqa.xcworkspace -scheme Halaqa -configuration Release -sdk iphonesimulator -derivedDataPath ios/build CODE_SIGN_IDENTITY=-",
+            "artifact": "ios/build/Build/Products/Release-iphonesimulator/*.app"
+          }
+        }
+      },
+      "appId": "halaqa-j9whqso6"
+    }
+  }
+}

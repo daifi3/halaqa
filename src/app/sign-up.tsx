@@ -33,8 +33,8 @@ export default function SignUp() {
     setLoading(true);
     setError(null);
     try {
-      const { user, token } = await api.signUp({ name: name.trim(), email: email.trim().toLowerCase(), password, role });
-      setSession(user, token); // Protected routes switch to the app automatically.
+      const session = await api.signUp({ name: name.trim(), email: email.trim().toLowerCase(), password, role });
+      setSession(session); // Protected routes switch to the app automatically.
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not create your account');
     } finally {

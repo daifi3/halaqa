@@ -1,6 +1,7 @@
 package dz.halaqa.exam;
 
 import dz.halaqa.auth.AuthInterceptor;
+import dz.halaqa.auth.PersonDto;
 import dz.halaqa.auth.User;
 import dz.halaqa.course.Course;
 import dz.halaqa.course.CourseAccess;
@@ -56,30 +57,34 @@ public class ExamController {
 
     public record ScoreDto(int earned, int total, int ungraded, double grade, int scale) {}
 
-    public record AttemptDto(String id, String examId, Map<String, String> student, Instant startedAt,
+    public record AttemptDto(String id, String examId, PersonDto student, Instant startedAt,
                              Instant deadline, Instant finishedAt, ExamAttempt.Finish finish,
                              Map<String, Object> answers, Map<String, Integer> writtenGrades,
-                             /* Null for a student until their results are released. */ ScoreDto score) {}
+                             /* Null for a student until their results are released or their grade is final. */ ScoreDto score,
+                             /* When the teacher finalized the grade; null until then. */ Instant finalizedAt) {}
 
     public record ExamDto(String id, String courseId, String courseTitle, String title, String instructions,
                           int durationMin, Instant opensAt, Instant closesAt, boolean showResults, int gradeScale,
-                          Map<String, String> teacher, Instant createdAt,
+                          PersonDto teacher, Instant createdAt,
                           /* Empty for a student until they start; no answer key until results are released. */
                           List<ExamQuestion> questions, int questionCount, int totalPoints,
                           /* Student only. */ AttemptDto myAttempt,
-                          /* Teacher only: finished attempts. */ Long submissionCount) {}
+                          /* Teacher only: finished attempts. */ Long submissionCount,
+                          /* Teacher only: attempts whose grade is final. */ Long finalizedCount) {}
 
     private final ExamRepositories.Exams exams;
     private final ExamRepositories.Attempts attempts;
     private final CourseAccess access;
     private final CourseRepository courses;
+    private final ExamNotifier notifier;
 
     public ExamController(ExamRepositories.Exams exams, ExamRepositories.Attempts attempts,
-                          CourseAccess access, CourseRepository courses) {
+                          CourseAccess access, CourseRepository courses, ExamNotifier notifier) {
         this.exams = exams;
         this.attempts = attempts;
         this.access = access;
         this.courses = courses;
+        this.notifier = notifier;
     }
 
     /* ---------- Exams ---------- */
@@ -157,7 +162,7 @@ public class ExamController {
         owned(id, me);
         Instant now = Instant.now();
         return attempts.findByExamIdOrderByStartedAtDesc(id).stream()
-                .peek(a -> a.expireIfDue(now))
+                .peek(a -> notifier.expireIfDue(a, now))
                 .map(a -> dto(a, me))
                 .toList();
     }
@@ -167,7 +172,7 @@ public class ExamController {
     @Transactional
     public AttemptDto attempt(@PathVariable String id, @RequestAttribute(AuthInterceptor.USER_ATTR) User me) {
         ExamAttempt a = attemptFor(id, me);
-        a.expireIfDue(Instant.now());
+        notifier.expireIfDue(a, Instant.now());
         return dto(a, me);
     }
 
@@ -179,7 +184,7 @@ public class ExamController {
     public AttemptDto answer(@PathVariable String id, @PathVariable String questionId, @RequestBody AnswerRequest req,
                              @RequestAttribute(AuthInterceptor.USER_ATTR) User me) {
         ExamAttempt a = ownAttempt(id, me);
-        if (a.expireIfDue(Instant.now())) throw conflict("Time is up — your answers were submitted");
+        if (notifier.expireIfDue(a, Instant.now())) throw conflict("Time is up — your answers were submitted");
         if (a.isFinished()) throw conflict("This attempt is finished and can't be changed");
         ExamQuestion q = a.getExam().getQuestions().stream().filter(x -> x.id().equals(questionId)).findFirst()
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No such question in this exam"));
@@ -197,8 +202,7 @@ public class ExamController {
         if (req.reason() == ExamAttempt.Finish.time_up) throw bad("The server decides when time is up");
         ExamAttempt a = ownAttempt(id, me);
         Instant now = Instant.now();
-        a.expireIfDue(now);
-        a.finish(req.reason(), now);
+        if (!notifier.expireIfDue(a, now) && a.finish(req.reason(), now)) notifier.finished(a);
         return dto(a, me);
     }
 
@@ -209,14 +213,58 @@ public class ExamController {
                             @RequestAttribute(AuthInterceptor.USER_ATTR) User me) {
         ExamAttempt a = attemptFor(id, me);
         if (!isOwner(a.getExam(), me)) throw forbidden("Only the course teacher can grade");
-        a.expireIfDue(Instant.now());
+        notifier.expireIfDue(a, Instant.now());
         if (!a.isFinished()) throw conflict("Wait until the student has finished");
+        if (a.isFinalized()) throw conflict("This grade is final. Reopen it to change it");
         ExamQuestion q = a.getExam().getQuestions().stream().filter(x -> x.id().equals(questionId)).findFirst()
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No such question in this exam"));
         if (q.kind() != ExamQuestion.Kind.written) throw bad("Only written answers are graded by hand");
         if (req.points() > q.points()) throw bad("This question is worth at most " + q.points() + " points");
         a.setWrittenGrade(questionId, req.points());
         return dto(a, me);
+    }
+
+    @Operation(summary = "Finalize the grade and release it to the student (course teacher)",
+            description = "Every written answer must be graded first. The student is notified, and sees their "
+                    + "grade even when the exam doesn't show results. Grades are locked until it's reopened.")
+    @PostMapping("/exam-attempts/{id}/finalize")
+    @Transactional
+    public AttemptDto finalizeGrade(@PathVariable String id, @RequestAttribute(AuthInterceptor.USER_ATTR) User me) {
+        ExamAttempt a = ownedAttempt(id, me);
+        if (a.isFinalized()) return dto(a, me);
+        int ungraded = score(a.getExam(), a).ungraded();
+        if (ungraded > 0) throw conflict("Grade every written answer first (" + ungraded + " left)");
+        a.finalizeGrade(Instant.now());
+        notifier.finalized(a);
+        return dto(a, me);
+    }
+
+    @Operation(summary = "Reopen a finalized grade to change it (course teacher)",
+            description = "The student keeps seeing the earlier grade until it's finalized again.")
+    @DeleteMapping("/exam-attempts/{id}/finalize")
+    @Transactional
+    public AttemptDto reopenGrade(@PathVariable String id, @RequestAttribute(AuthInterceptor.USER_ATTR) User me) {
+        ExamAttempt a = ownedAttempt(id, me);
+        a.reopenGrade();
+        return dto(a, me);
+    }
+
+    @Operation(summary = "Finalize every fully graded attempt at once (course teacher)",
+            description = "Skips attempts with written answers still to grade. Returns every attempt, like GET /exams/{id}/attempts.")
+    @PostMapping("/exams/{id}/finalize")
+    @Transactional
+    public List<AttemptDto> finalizeAll(@PathVariable String id, @RequestAttribute(AuthInterceptor.USER_ATTR) User me) {
+        Exam exam = owned(id, me);
+        Instant now = Instant.now();
+        List<ExamAttempt> all = attempts.findByExamIdOrderByStartedAtDesc(id);
+        for (ExamAttempt a : all) {
+            notifier.expireIfDue(a, now);
+            if (a.isFinished() && !a.isFinalized() && score(exam, a).ungraded() == 0) {
+                a.finalizeGrade(now);
+                notifier.finalized(a);
+            }
+        }
+        return all.stream().map(a -> dto(a, me)).toList();
     }
 
     /* ---------------------------------------------------------------- */
@@ -255,7 +303,7 @@ public class ExamController {
         return index;
     }
 
-    private static ScoreDto score(Exam exam, ExamAttempt a) {
+    static ScoreDto score(Exam exam, ExamAttempt a) {
         Map<String, Object> answers = a.getAnswers();
         Map<String, Integer> grades = a.getWrittenGrades();
         int earned = 0, total = 0, ungraded = 0;
@@ -280,12 +328,17 @@ public class ExamController {
         return isOwner(exam, viewer) || (a != null && a.isFinished() && exam.isShowResults());
     }
 
+    /** The score: also released to the student once the teacher has finalized it, answer key or not. */
+    private static boolean scoreVisible(Exam exam, ExamAttempt a, User viewer) {
+        return resultsVisible(exam, a, viewer) || (a.isFinished() && a.isFinalized());
+    }
+
     private ExamDto dto(Exam e, User viewer) {
         boolean owner = isOwner(e, viewer);
         ExamAttempt mine = null;
         if (!owner) {
             mine = attempts.findByExamIdAndStudentId(e.getId(), viewer.getId()).orElse(null);
-            if (mine != null) mine.expireIfDue(Instant.now());
+            if (mine != null) notifier.expireIfDue(mine, Instant.now());
         }
         List<ExamQuestion> all = e.getQuestions();
         List<ExamQuestion> visible = owner ? all
@@ -294,18 +347,19 @@ public class ExamController {
                 : all.stream().map(ExamQuestion::withoutAnswer).toList();
         return new ExamDto(e.getId(), e.getCourse().getId(), e.getCourse().getTitle(), e.getTitle(),
                 e.getInstructions() == null ? "" : e.getInstructions(), e.getDurationMin(), e.getOpensAt(), e.getClosesAt(),
-                e.isShowResults(), e.getGradeScale(), Map.of("id", e.getTeacher().getId(), "name", e.getTeacher().getName()),
+                e.isShowResults(), e.getGradeScale(), PersonDto.of(e.getTeacher()),
                 e.getCreatedAt(), visible, all.size(), e.totalPoints(),
                 mine == null ? null : dto(mine, viewer),
-                owner ? attempts.countByExamIdAndFinishIsNotNull(e.getId()) : null);
+                owner ? attempts.countByExamIdAndFinishIsNotNull(e.getId()) : null,
+                owner ? attempts.countByExamIdAndFinalizedAtIsNotNull(e.getId()) : null);
     }
 
     private static AttemptDto dto(ExamAttempt a, User viewer) {
         Exam exam = a.getExam();
         return new AttemptDto(a.getId(), exam.getId(),
-                Map.of("id", a.getStudent().getId(), "name", a.getStudent().getName()),
+                PersonDto.of(a.getStudent()),
                 a.getStartedAt(), a.deadline(), a.getFinishedAt(), a.getFinish(), a.getAnswers(), a.getWrittenGrades(),
-                resultsVisible(exam, a, viewer) ? score(exam, a) : null);
+                scoreVisible(exam, a, viewer) ? score(exam, a) : null, a.getFinalizedAt());
     }
 
     private Exam accessible(String id, User me) {
@@ -325,6 +379,15 @@ public class ExamController {
         ExamAttempt a = attempts.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Attempt not found"));
         boolean mine = a.getStudent().getId().equals(me.getId());
         if (!mine && !isOwner(a.getExam(), me)) throw forbidden("You can't see this attempt");
+        return a;
+    }
+
+    /** A finished attempt at an exam the user teaches. */
+    private ExamAttempt ownedAttempt(String id, User me) {
+        ExamAttempt a = attemptFor(id, me);
+        if (!isOwner(a.getExam(), me)) throw forbidden("Only the course teacher can do this");
+        notifier.expireIfDue(a, Instant.now());
+        if (!a.isFinished()) throw conflict("Wait until the student has finished");
         return a;
     }
 
