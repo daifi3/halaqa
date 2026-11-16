@@ -146,13 +146,13 @@ const styles = StyleSheet.create({
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: 16, gap: 14, borderWidth: 1.5, borderColor: 'transparent', ...shadow.card },
   cardError: { borderColor: colors.danger },
   head: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  number: { width: 26, height: 26, borderRadius: 13, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
+  number: { width: 26, height: 26, borderRadius: 13, backgroundColor: colors.inverse, alignItems: 'center', justifyContent: 'center' },
   kinds: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   kind: {
     flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8,
     borderRadius: radius.pill, backgroundColor: colors.surfaceAlt,
   },
-  kindOn: { backgroundColor: colors.ink },
+  kindOn: { backgroundColor: colors.inverse },
   hint: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.bg, borderRadius: radius.md, padding: 12 },
   option: {
     flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 50, paddingHorizontal: 14,

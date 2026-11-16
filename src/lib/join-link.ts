@@ -14,6 +14,20 @@ export function joinLink(kind: JoinKind, code: string) {
   return Linking.createURL(`/${PATHS[kind]}`, { queryParams: { code } });
 }
 
+/**
+ * Pulls a 6-character join code out of pasted text: a bare code, a join link,
+ * or a message like "Join my class with code OOP24K".
+ */
+export function extractJoinCode(text: string): string | null {
+  const link = parseJoinLink(text);
+  if (link) return link.code;
+  const upper = text.toUpperCase();
+  const token = upper.match(/(?:^|[^A-Z0-9])([A-Z0-9]{6})(?![A-Z0-9])/);
+  if (token) return token[1];
+  const stripped = upper.replace(/[^A-Z0-9]/g, '');
+  return stripped.length === 6 ? stripped : null;
+}
+
 /** Reads a scanned QR payload. Also accepts a bare 6-character code (treated as a class). */
 export function parseJoinLink(data: string): { kind: JoinKind; code: string } | null {
   const raw = data.trim().toUpperCase();

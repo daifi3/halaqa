@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { totalUnread, useChats } from '@/store/chats';
 import { colors, radius, shadow, springs } from '@/theme';
 import { PressableScale } from './ui/pressable-scale';
 
@@ -12,6 +13,7 @@ const ICONS: Record<string, [keyof typeof Ionicons.glyphMap, keyof typeof Ionico
   courses: ['library', 'library-outline'],
   exams: ['ribbon', 'ribbon-outline'],
   recordings: ['play-circle', 'play-circle-outline'],
+  contacts: ['people', 'people-outline'],
   profile: ['person-circle', 'person-circle-outline'],
 };
 
@@ -20,6 +22,7 @@ export function TabBar({ state, navigateToTab }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const [width, setWidth] = useState(0);
   const tabW = width / state.routes.length;
+  const unread = useChats((s) => totalUnread(s.conversations));
 
   const indicator = useAnimatedStyle(() => ({
     width: tabW - 8,
@@ -43,6 +46,7 @@ export function TabBar({ state, navigateToTab }: BottomTabBarProps) {
               }}
             >
               <Ionicons name={focused ? on : off} size={20} color={focused ? '#fff' : colors.muted} />
+              {route.name === 'contacts' && unread > 0 && <View style={styles.dot} />}
             </PressableScale>
           );
         })}
@@ -57,6 +61,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', backgroundColor: colors.surface, borderRadius: radius.pill, padding: 6,
     width: '86%', ...shadow.float,
   },
-  indicator: { position: 'absolute', top: 6, bottom: 6, left: 2, borderRadius: radius.pill, backgroundColor: colors.ink },
+  indicator: { position: 'absolute', top: 6, bottom: 6, left: 2, borderRadius: radius.pill, backgroundColor: colors.inverse },
+  dot: { position: 'absolute', top: 10, right: '28%', width: 9, height: 9, borderRadius: 5, backgroundColor: colors.danger, borderWidth: 1.5, borderColor: colors.surface },
   tab: { flex: 1, height: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
 });

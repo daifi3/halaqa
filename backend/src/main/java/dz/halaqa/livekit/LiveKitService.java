@@ -59,6 +59,62 @@ public class LiveKitService {
         return token.toJwt();
     }
 
+    /** A token for a one-to-one audio call: microphone only, no camera or screen. */
+    public String createCallToken(String roomName, User user) {
+        AccessToken token = new AccessToken(cfg.apiKey(), cfg.apiSecret());
+        token.setIdentity(user.getId());
+        token.setName(user.getName());
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("role", user.getRole().name());
+        if (user.getAvatarUrl() != null) metadata.put("avatarUrl", user.getAvatarUrl());
+        token.setMetadata(Json.write(metadata));
+        token.addGrants(
+                new RoomJoin(true),
+                new RoomName(roomName),
+                new CanPublish(true),
+                new CanSubscribe(true),
+                new CanPublishData(false),
+                new CanPublishSources(List.of("microphone")));
+        return token.toJwt();
+    }
+
+    /** Each signed-in app listens in its own "inbox" room for chat events the server sends it. */
+    public static String inboxRoom(String userId) {
+        return "inbox-" + userId;
+    }
+
+    /**
+     * A listen-only token for the user's inbox room: no microphone, no camera, and no data
+     * publishing — only the server writes there, so nobody can fake a message.
+     */
+    public String createInboxToken(User user) {
+        AccessToken token = new AccessToken(cfg.apiKey(), cfg.apiSecret());
+        token.setIdentity(user.getId());
+        token.setName(user.getName());
+        token.setTtl(12 * 60 * 60 * 1000L);
+        token.addGrants(
+                new RoomJoin(true),
+                new RoomName(inboxRoom(user.getId())),
+                new CanPublish(false),
+                new CanPublishData(false),
+                new CanSubscribe(true),
+                new Hidden(false));
+        return token.toJwt();
+    }
+
+    /**
+     * Sends an event to every app the user has open (their inbox room). Best effort: when
+     * nobody is connected the room doesn't exist and LiveKit refuses — they catch up from
+     * the API (and a push notification) instead.
+     */
+    public void sendToUser(String userId, byte[] payload, String topic) {
+        try {
+            roomService.sendData(inboxRoom(userId), payload, LivekitModels.DataPacket.Kind.RELIABLE, List.of(), List.of(), topic).execute();
+        } catch (IOException | RuntimeException ignored) {
+            // Offline, or LiveKit unreachable.
+        }
+    }
+
     private static List<String> sourcesFor(boolean screen) {
         var sources = new ArrayList<>(List.of("camera", "microphone"));
         if (screen) sources.addAll(List.of("screen_share", "screen_share_audio"));
@@ -131,8 +187,13 @@ public class LiveKitService {
 
     /** Identities of everyone currently connected to the room. */
     public List<String> participants(Room room) {
+        return participants(room.livekitName());
+    }
+
+    /** Identities of everyone connected to a LiveKit room, by its name (empty when it doesn't exist). */
+    public List<String> participants(String livekitRoomName) {
         try {
-            var res = roomService.listParticipants(room.livekitName()).execute();
+            var res = roomService.listParticipants(livekitRoomName).execute();
             if (!res.isSuccessful() || res.body() == null) return List.of();
             return res.body().stream().map(LivekitModels.ParticipantInfo::getIdentity).toList();
         } catch (IOException e) {

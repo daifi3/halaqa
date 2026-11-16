@@ -15,18 +15,18 @@ export function CodeCard({ code, showQr, onToggleQr, delayMs }: {
     display: 'flex', alignItems: 'center', gap: 6, backgroundColor: '#fff', padding: '10px 14px', borderRadius: radius.pill,
   };
   return (
-    <div className="h a-down" style={{ ...delay(delayMs), backgroundColor: colors.ink, borderRadius: radius.xl, padding: 20, gap: 12 }}>
+    <div className="h a-down" style={{ ...delay(delayMs), backgroundColor: colors.inverse, borderRadius: radius.xl, padding: 20, gap: 12 }}>
       <div className="v flex1" style={{ gap: 4 }}>
         <Text variant="label" color="rgba(255,255,255,0.6)">Join code</Text>
         <Text variant="title" color="#fff" style={{ letterSpacing: 6 }}>{code}</Text>
       </div>
       <div className="h" style={{ gap: 8 }}>
         <Pressable onClick={onToggleQr} aria-label="Show QR code" aria-pressed={showQr} style={{ ...pill, backgroundColor: showQr ? colors.primary : '#fff' }}>
-          <Icon name="qr-code-outline" size={18} color={showQr ? '#fff' : colors.ink} />
+          <Icon name="qr-code-outline" size={18} color={showQr ? '#fff' : colors.inverse} />
         </Pressable>
         <Pressable onClick={async () => { await copyText(code); setCopied(true); }} style={pill}>
-          <Icon name={copied ? 'checkmark' : 'copy-outline'} size={18} color={colors.ink} />
-          <Text variant="small">{copied ? 'Copied' : 'Copy'}</Text>
+          <Icon name={copied ? 'checkmark' : 'copy-outline'} size={18} color={colors.inverse} />
+          <Text variant="small" color={colors.inverse}>{copied ? 'Copied' : 'Copy'}</Text>
         </Pressable>
       </div>
     </div>

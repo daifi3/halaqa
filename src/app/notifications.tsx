@@ -50,7 +50,7 @@ export default function NotificationSettings() {
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(60)} style={[styles.row, styles.card]}>
-          <View style={[styles.rowIcon, { backgroundColor: colors.ink }]}>
+          <View style={[styles.rowIcon, { backgroundColor: colors.inverse }]}>
             <Ionicons name="notifications" size={18} color="#fff" />
           </View>
           <View style={{ flex: 1, gap: 2 }}>

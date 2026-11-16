@@ -45,7 +45,7 @@ export default function NotificationSettings() {
 
       <div className="split-side">
       <div className="h a-down" style={{ ...delay(60), gap: 12, padding: '14px 16px', backgroundColor: colors.surface, borderRadius: radius.lg }}>
-        <span className="h center" style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: colors.ink, flexShrink: 0 }}>
+        <span className="h center" style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: colors.inverse, flexShrink: 0 }}>
           <Icon name="notifications" size={18} color="#fff" />
         </span>
         <div className="v flex1" style={{ gap: 2 }}>

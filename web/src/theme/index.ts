@@ -3,7 +3,7 @@
  * Warm paper background, deep ink text, one confident indigo accent.
  * The classroom itself switches to a dark "stage" palette so video pops.
  */
-export const colors = {
+const light = {
   bg: '#F4F2EE',
   surface: '#FFFFFF',
   surfaceAlt: '#ECE9E3',
@@ -32,7 +32,101 @@ export const colors = {
   stageLine: '#2A2B33',
   stageText: '#F2F2F5',
   stageMuted: '#9A9BA6',
-} as const;
+
+  /** Dark "hero" surfaces with white text on them (main actions, code cards). Stays dark in both modes. */
+  inverse: '#16171C',
+};
+
+export type Palette = typeof light;
+
+/** Same roles after dark: warm charcoal surfaces, light ink, accents lifted a little for contrast. Mirrors the app. */
+const dark: Palette = {
+  bg: '#111215',
+  surface: '#1B1C21',
+  surfaceAlt: '#25262D',
+  ink: '#F2F1EE',
+  inkSoft: '#C9C8CF',
+  muted: '#8E8F99',
+  line: '#2D2E36',
+
+  primary: '#6A63F0',
+  primarySoft: '#272550',
+  primaryInk: '#FFFFFF',
+
+  teacher: '#6A63F0',
+  teacherSoft: '#272550',
+  student: '#E8854F',
+  studentSoft: '#3A2518',
+
+  success: '#2DB37E',
+  successSoft: '#14342A',
+  danger: '#EF5A5F',
+  dangerSoft: '#3D1C1F',
+
+  stage: '#0F1014',
+  stageCard: '#1B1C22',
+  stageLine: '#2A2B33',
+  stageText: '#F2F2F5',
+  stageMuted: '#9A9BA6',
+
+  inverse: '#2C2D37',
+};
+
+/**
+ * Light / dark mode. Inline styles read these colours when they render, so the
+ * palette is picked once at startup and changing it reloads the page. The same
+ * choice sets data-theme on <html> for the CSS variables (index.html does that
+ * first, before anything paints).
+ */
+export type ThemePref = 'system' | 'light' | 'dark';
+const THEME_KEY = 'halaqa-theme';
+
+function readThemePref(): ThemePref {
+  try {
+    const value = localStorage.getItem(THEME_KEY);
+    return value === 'light' || value === 'dark' ? value : 'system';
+  } catch {
+    return 'system';
+  }
+}
+
+const systemDark = () => window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
+
+export const themePref = readThemePref();
+export const isDark = themePref === 'system' ? systemDark() : themePref === 'dark';
+export const colors: Palette = isDark ? dark : light;
+
+document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
+
+/** Saves the choice and reloads the page in the new colours. */
+export function setThemePref(pref: ThemePref) {
+  try {
+    localStorage.setItem(THEME_KEY, pref);
+  } catch {
+    // Storage blocked: nothing to keep, nothing to reload for.
+    return;
+  }
+  window.location.reload();
+}
+
+/** "System" mode follows the computer's setting when it changes. */
+if (themePref === 'system') {
+  window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+    if (e.matches !== isDark) followSystemWhenIdle();
+  });
+}
+
+/** Never reload in the middle of a live class or an exam: wait until you leave it. */
+function followSystemWhenIdle() {
+  const busy = () => /^\/(classroom|exam\/take)/.test(window.location.pathname);
+  if (!busy()) {
+    window.location.reload();
+    return;
+  }
+  const timer = setInterval(() => {
+    if (!busy()) { clearInterval(timer); window.location.reload(); }
+  }, 2000);
+}
 
 export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 28, xxxl: 40 } as const;
 export const radius = { sm: 10, md: 14, lg: 20, xl: 28, pill: 999 } as const;

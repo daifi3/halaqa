@@ -530,7 +530,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.line,
   },
   navDotAnswered: { backgroundColor: colors.primarySoft, borderColor: colors.primarySoft },
-  navDotCurrent: { backgroundColor: colors.ink, borderColor: colors.ink },
+  navDotCurrent: { backgroundColor: colors.inverse, borderColor: colors.inverse },
   navFlag: { position: 'absolute', top: -1, right: -1, width: 10, height: 10, borderRadius: 5, backgroundColor: colors.student, borderWidth: 2, borderColor: colors.bg },
   content: { padding: 20, paddingBottom: 32 },
   qMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },

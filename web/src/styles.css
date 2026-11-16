@@ -36,6 +36,8 @@
   --shadow-float: 0 12px 24px rgba(27, 26, 46, 0.16);
   --spring: cubic-bezier(0.34, 1.4, 0.64, 1);
 
+  --inverse: #16171C;
+
   color-scheme: light;
   font-family: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   font-weight: 500;
@@ -43,6 +45,31 @@
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Dark mode: same roles, set on <html> by index.html and src/theme (mirrors the TS palette). */
+:root[data-theme='dark'] {
+  --bg: #111215;
+  --surface: #1B1C21;
+  --surface-alt: #25262D;
+  --ink: #F2F1EE;
+  --ink-soft: #C9C8CF;
+  --muted: #8E8F99;
+  --line: #2D2E36;
+  --primary: #6A63F0;
+  --primary-soft: #272550;
+  --teacher: #6A63F0;
+  --teacher-soft: #272550;
+  --student: #E8854F;
+  --student-soft: #3A2518;
+  --success: #2DB37E;
+  --success-soft: #14342A;
+  --danger: #EF5A5F;
+  --danger-soft: #3D1C1F;
+  --inverse: #2C2D37;
+  --shadow-card: 0 8px 18px rgba(0, 0, 0, 0.35);
+  --shadow-float: 0 12px 24px rgba(0, 0, 0, 0.5);
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -136,7 +163,7 @@ a { color: inherit; text-decoration: none; }
   padding: 0 16px; display: flex; flex-direction: row; align-items: center; gap: 10px;
   transition: border-color 180ms, background-color 180ms;
 }
-.field:focus-within { border-color: var(--accent, var(--primary)); background: #FDFDFF; }
+.field:focus-within { border-color: var(--accent, var(--primary)); background: var(--surface); }
 .field.error { border-color: var(--danger); }
 .field.multiline { align-items: flex-start; }
 .field.multiline > .icon { margin-top: 17px; }
@@ -148,6 +175,15 @@ a { color: inherit; text-decoration: none; }
 .field input::placeholder, .field textarea::placeholder { color: var(--muted); }
 .field .icon { color: var(--muted); transition: color 180ms; }
 .field:focus-within > .icon { color: var(--accent, var(--primary)); }
+/* Show/hide toggle on password fields; hide the browser's own reveal button so there's only one. */
+.field-reveal {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin: 0 -6px 0 0; padding: 6px;
+  border: 0; border-radius: 999px; background: transparent; cursor: pointer;
+}
+.field-reveal:hover { background: var(--surface-alt, rgba(0, 0, 0, 0.05)); }
+.field-reveal:focus-visible { outline: 2px solid var(--accent, var(--primary)); outline-offset: 1px; }
+.field:focus-within .field-reveal .icon { color: var(--accent, var(--primary)); }
+.field input::-ms-reveal, .field input::-ms-clear { display: none; }
 
 .switch { position: relative; width: 48px; height: 28px; flex-shrink: 0; }
 .switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
@@ -187,7 +223,7 @@ a { color: inherit; text-decoration: none; }
   border-radius: 999px; padding: 6px; box-shadow: var(--shadow-float);
 }
 .tabbar-indicator {
-  position: absolute; top: 6px; bottom: 6px; left: 6px; border-radius: 999px; background: var(--ink);
+  position: absolute; top: 6px; bottom: 6px; left: 6px; border-radius: 999px; background: var(--inverse);
   transition: transform 420ms var(--spring);
 }
 .tab { position: relative; flex: 1; height: 48px; display: flex; align-items: center; justify-content: center; gap: 6px; color: var(--muted); }
@@ -236,7 +272,7 @@ a { color: inherit; text-decoration: none; }
   .tabbar-indicator { display: none; }
   .tab { flex: none; justify-content: flex-start; padding: 0 14px; border-radius: var(--r-md); gap: 12px; height: 44px; color: var(--ink-soft); }
   .tab .tab-label { display: inline; font-weight: 600; font-size: 15px; }
-  .tab.on { background: var(--ink); color: #fff; }
+  .tab.on { background: var(--inverse); color: #fff; }
   .tab:not(.on):hover { background: var(--bg); }
   .sidebar-brand { display: flex; align-items: center; gap: 10px; padding: 2px 8px; }
   .sidebar-foot { display: block; margin-top: auto; border-top: 1px solid var(--line); padding-top: 12px; }
@@ -313,6 +349,57 @@ a { color: inherit; text-decoration: none; }
 @media (min-width: 900px) {
   .chat-sheet { left: auto; top: 0; height: auto; width: 380px; border-radius: var(--r-xl) 0 0 var(--r-xl); border: 1px solid var(--stage-line); border-right: 0; animation: fadeInRight 220ms ease both; }
 }
+
+.poll-sheet {
+  position: absolute; left: 0; right: 0; bottom: 0; max-height: 88%; display: flex; flex-direction: column;
+  background: #15161B; border: 1px solid var(--stage-line); border-bottom: 0;
+  border-radius: var(--r-xl) var(--r-xl) 0 0; animation: slideUp 250ms ease both;
+}
+@media (min-width: 900px) {
+  .poll-sheet { left: auto; top: 0; max-height: none; width: 420px; border-radius: var(--r-xl) 0 0 var(--r-xl); border: 1px solid var(--stage-line); border-right: 0; animation: fadeInRight 220ms ease both; }
+}
+
+/* The call page: soft rings spreading out behind the avatar while it rings. */
+.call-avatar { position: relative; display: flex; margin-bottom: 12px; isolation: isolate; }
+.call-avatar.ringing::before, .call-avatar.ringing::after {
+  content: ''; position: absolute; inset: 0; border-radius: 50%; background: var(--success);
+  animation: callPulse 1600ms ease-out infinite; z-index: -1;
+}
+.call-avatar.ringing::after { animation-delay: 800ms; }
+@keyframes callPulse { from { opacity: 0.5; transform: scale(1); } to { opacity: 0; transform: scale(1.7); } }
+
+/* ---------- Chats: the floating widget at the bottom right ---------- */
+.chat-launcher {
+  position: fixed; right: 24px; bottom: 24px; z-index: 30; width: 58px; height: 58px; border-radius: 29px; border: 0;
+  background: var(--primary); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-float);
+}
+.chat-launcher-badge {
+  position: absolute; top: -4px; right: -4px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px;
+  background: var(--danger); color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center;
+  justify-content: center; border: 2px solid var(--bg);
+}
+.chat-panel {
+  position: fixed; right: 24px; bottom: 24px; z-index: 40; width: 380px; height: min(620px, calc(100vh - 48px));
+  display: flex; flex-direction: column; overflow: hidden; border-radius: var(--r-lg); background: var(--surface);
+  border: 1px solid var(--line); box-shadow: 0 18px 50px rgba(0, 0, 0, 0.22); animation: fadeInUp 240ms ease both;
+}
+@media (max-width: 959px) {
+  /* Above the floating tab bar on phones. */
+  .chat-launcher.over-tabbar { bottom: calc(max(env(safe-area-inset-bottom), 12px) + 76px); right: 16px; width: 52px; height: 52px; }
+}
+@media (max-width: 600px) {
+  .chat-panel { inset: 0; width: auto; height: auto; border-radius: 0; border: 0; padding-bottom: env(safe-area-inset-bottom); }
+}
+.chat-msg .chat-react-btn {
+  opacity: 0; border: 0; background: transparent; cursor: pointer; padding: 4px; border-radius: 999px; display: flex;
+  transition: opacity 120ms; align-self: center;
+}
+.chat-msg:hover .chat-react-btn, .chat-react-btn:focus-visible { opacity: 1; }
+@media (hover: none) { .chat-msg .chat-react-btn { opacity: 0.6; } }
+.chat-emoji { font-size: 22px; width: 38px; height: 38px; border: 0; border-radius: 19px; cursor: pointer; transition: transform 120ms; }
+.chat-emoji:hover { transform: scale(1.2); }
+.typing-dot { width: 7px; height: 7px; border-radius: 4px; display: inline-block; animation: typingDot 900ms ease-in-out infinite; }
+@keyframes typingDot { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-4px); } }
 
 .chat-dock {
   width: 360px; flex-shrink: 0; display: flex; flex-direction: column; background: #15161B;

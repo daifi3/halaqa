@@ -1,11 +1,13 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import Constants from 'expo-constants';
 import * as ImagePicker from 'expo-image-picker';
 import { router, type Href } from 'expo-router';
 import { useState } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
+import { Alert, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '@/components/ui/button';
+import { ChoiceRow } from '@/components/ui/choice';
 import { Avatar, ToggleRow } from '@/components/ui/misc';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
@@ -15,7 +17,7 @@ import { config } from '@/lib/config';
 import { formatDay } from '@/lib/format';
 import { biometricRecordOf, useSecurityPrefs } from '@/store/security-prefs';
 import { useSession } from '@/store/session';
-import { colors, radius } from '@/theme';
+import { colors, radius, setThemePref, themePref, type ThemePref } from '@/theme';
 
 function Row({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string }) {
   return (
@@ -111,7 +113,7 @@ export default function Profile() {
 
   return (
     <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-      <View style={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Animated.View entering={ZoomIn} style={{ alignItems: 'center', gap: 12 }}>
           <PressableScale onPress={pickAvatar} disabled={uploading} style={styles.avatarWrap}>
             <Avatar name={user.name} size={96} ring={tone} uri={user.avatarUrl} />
@@ -169,7 +171,29 @@ export default function Profile() {
           />
         </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(260)} style={{ marginTop: 'auto', marginBottom: 120 }}>
+        <Animated.View entering={FadeInDown.delay(240)} style={[styles.card, styles.appearance]}>
+          <View style={styles.appearanceHead}>
+            <View style={[styles.actionIcon, { backgroundColor: colors.primary + '1A' }]}>
+              <Ionicons name="contrast-outline" size={20} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text variant="bodyStrong">Appearance</Text>
+              <Text variant="small" color={colors.muted}>System follows your phone’s light or dark setting</Text>
+            </View>
+          </View>
+          <ChoiceRow<ThemePref>
+            wrap
+            value={themePref}
+            onChange={(pref) => { if (pref !== themePref) void setThemePref(pref); }}
+            options={[
+              { value: 'system', label: 'System' },
+              { value: 'light', label: 'Light' },
+              { value: 'dark', label: 'Dark' },
+            ]}
+          />
+        </Animated.View>
+
+        <Animated.View entering={FadeInDown.delay(280)} style={{ marginTop: 'auto', marginBottom: 120, gap: 16 }}>
           <Button
             title="Sign out"
             variant="secondary"
@@ -181,14 +205,21 @@ export default function Profile() {
               ])
             }
           />
+          <Text variant="small" color={colors.muted} style={{ textAlign: 'center' }}>
+            Halaqa · Version {APP_VERSION} · {PLATFORM}
+          </Text>
         </Animated.View>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
+/** From app.json's "version" — bump it there for each release. */
+const APP_VERSION = Constants.expoConfig?.version ?? '1.0.0';
+const PLATFORM = Platform.OS === 'ios' ? 'iOS' : Platform.OS === 'android' ? 'Android' : 'Web';
+
 const styles = StyleSheet.create({
-  content: { flex: 1, padding: 20, gap: 20, paddingTop: 36 },
+  content: { flexGrow: 1, padding: 20, gap: 20, paddingTop: 36 },
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, paddingHorizontal: 16 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 16 },
   sep: { height: 1, backgroundColor: colors.line },
@@ -201,5 +232,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface,
     borderRadius: radius.lg, padding: 14,
   },
+  appearance: { paddingVertical: 14, gap: 14 },
+  appearanceHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   actionIcon: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
 });

@@ -1,8 +1,9 @@
 import { config } from './config';
+import { emitDemoChat } from './direct-chat';
 import { alert } from './dialog';
 import { attemptDeadline, examWindow, formatGrade, scoreAttempt } from './exam';
 import type {
-  AuthSession, Course, Exam, ExamAnswer, ExamAttempt, Homework, HomeworkSubmission, JoinCredentials, NewCourseInput, NewExamInput,
+  AuthSession, Call, Contact, ContactInput, Conversation, Course, DirectMessage, Person, Exam, ExamAnswer, ExamAttempt, Homework, HomeworkSubmission, JoinCredentials, NewCourseInput, NewExamInput,
   NewRoomInput, NewVaultDocumentInput, PickedFile, Recording, Role, Room, RoomStudent, RsvpStatus, StoredChatMessage,
   StoredExam, SubmitHomeworkInput, User, VaultDocument, AppNotification, Inbox,
 } from './types';
@@ -96,6 +97,43 @@ export interface Api {
   listNotifications(): Promise<Inbox>;
   markNotificationRead(id: string): Promise<void>;
   markAllNotificationsRead(): Promise<void>;
+
+  // Contacts (your own address book) and one-to-one audio calls
+  listContacts(): Promise<Contact[]>;
+  getContact(id: string): Promise<Contact>;
+  createContact(input: ContactInput): Promise<Contact>;
+  updateContact(id: string, input: ContactInput): Promise<Contact>;
+  deleteContact(id: string): Promise<void>;
+  /** Recent calls, newest first. */
+  listCalls(): Promise<Call[]>;
+  /** Calls ringing for you right now — open apps poll this. */
+  listIncomingCalls(): Promise<Call[]>;
+  getCall(id: string): Promise<Call>;
+  /** Rings someone with a Halaqa account (a contact's `user`). */
+  startCall(calleeId: string): Promise<Call>;
+  acceptCall(id: string): Promise<Call>;
+  declineCall(id: string): Promise<Call>;
+  /** Hang up: cancels a ringing call, or ends a connected one for both. */
+  endCall(id: string): Promise<Call>;
+  /** Microphone-only LiveKit token for the call. */
+  getCallCredentials(id: string): Promise<JoinCredentials>;
+
+  // One-to-one chats. Saved by the API, delivered live over LiveKit (see lib/direct-chat).
+  listChats(): Promise<Conversation[]>;
+  /** The chat with someone with a Halaqa account — started if there isn't one yet. */
+  openChat(userId: string): Promise<Conversation>;
+  getChat(id: string): Promise<Conversation>;
+  /** Newest first; pass the oldest `createdAt` you have to page back in time. */
+  listChatMessages(id: string, before?: string): Promise<DirectMessage[]>;
+  sendChatMessage(id: string, message: { id: string; text: string }): Promise<DirectMessage>;
+  sendChatFile(id: string, message: { id: string; file: PickedFile; text?: string }): Promise<DirectMessage>;
+  /** One emoji per person per message; null removes yours. */
+  reactToMessage(id: string, messageId: string, emoji: string | null): Promise<DirectMessage>;
+  sendTyping(id: string): Promise<void>;
+  markChatRead(id: string): Promise<Conversation>;
+  setChatTheme(id: string, theme: string): Promise<Conversation>;
+  /** Listen-only LiveKit token for your own inbox room, where live chat events arrive. */
+  getChatRealtimeToken(): Promise<JoinCredentials>;
 
   // Class chat history (live delivery goes over LiveKit)
   listRoomMessages(roomId: string): Promise<StoredChatMessage[]>;
@@ -343,6 +381,45 @@ class HttpApi implements Api {
   listNotifications() { return this.request<Inbox>('/notifications'); }
   async markNotificationRead(id: string) { await this.request<AppNotification>(`/notifications/${id}/read`, { method: 'POST' }); }
   markAllNotificationsRead() { return this.request<void>('/notifications/read-all', { method: 'POST' }); }
+
+  listContacts() { return this.request<Contact[]>('/contacts'); }
+  getContact(id: string) { return this.request<Contact>(`/contacts/${id}`); }
+  createContact(input: ContactInput) { return this.request<Contact>('/contacts', { method: 'POST', body: JSON.stringify(input) }); }
+  updateContact(id: string, input: ContactInput) {
+    return this.request<Contact>(`/contacts/${id}`, { method: 'PUT', body: JSON.stringify(input) });
+  }
+  deleteContact(id: string) { return this.request<void>(`/contacts/${id}`, { method: 'DELETE' }); }
+  listCalls() { return this.request<Call[]>('/calls'); }
+  listIncomingCalls() { return this.request<Call[]>('/calls/incoming'); }
+  getCall(id: string) { return this.request<Call>(`/calls/${id}`); }
+  startCall(calleeId: string) { return this.request<Call>('/calls', { method: 'POST', body: JSON.stringify({ calleeId }) }); }
+  acceptCall(id: string) { return this.request<Call>(`/calls/${id}/accept`, { method: 'POST' }); }
+  declineCall(id: string) { return this.request<Call>(`/calls/${id}/decline`, { method: 'POST' }); }
+  endCall(id: string) { return this.request<Call>(`/calls/${id}/end`, { method: 'POST' }); }
+  getCallCredentials(id: string) { return this.request<JoinCredentials>(`/calls/${id}/token`, { method: 'POST' }); }
+
+  listChats() { return this.request<Conversation[]>('/chats'); }
+  openChat(userId: string) { return this.request<Conversation>('/chats', { method: 'POST', body: JSON.stringify({ userId }) }); }
+  getChat(id: string) { return this.request<Conversation>(`/chats/${id}`); }
+  listChatMessages(id: string, before?: string) {
+    return this.request<DirectMessage[]>(`/chats/${id}/messages${before ? `?before=${encodeURIComponent(before)}` : ''}`);
+  }
+  sendChatMessage(id: string, message: { id: string; text: string }) {
+    return this.request<DirectMessage>(`/chats/${id}/messages`, { method: 'POST', body: JSON.stringify(message) });
+  }
+  async sendChatFile(id: string, message: { id: string; file: PickedFile; text?: string }) {
+    const form = await fileForm(message.file, { id: message.id, text: message.text });
+    return this.request<DirectMessage>(`/chats/${id}/files`, { method: 'POST', body: form });
+  }
+  reactToMessage(id: string, messageId: string, emoji: string | null) {
+    return this.request<DirectMessage>(`/chats/${id}/messages/${messageId}/reaction`, { method: 'PUT', body: JSON.stringify({ emoji }) });
+  }
+  sendTyping(id: string) { return this.request<void>(`/chats/${id}/typing`, { method: 'POST' }); }
+  markChatRead(id: string) { return this.request<Conversation>(`/chats/${id}/read`, { method: 'POST' }); }
+  setChatTheme(id: string, theme: string) {
+    return this.request<Conversation>(`/chats/${id}/theme`, { method: 'PUT', body: JSON.stringify({ theme }) });
+  }
+  getChatRealtimeToken() { return this.request<JoinCredentials>('/chats/realtime-token', { method: 'POST' }); }
 
   listRoomMessages(roomId: string) { return this.request<StoredChatMessage[]>(`/rooms/${roomId}/messages`); }
   postRoomMessage(roomId: string, message: { id: string; text: string }) {
@@ -1027,6 +1104,324 @@ class MockApi implements Api {
 
   async markAllNotificationsRead() {
     useDemoNotifications.getState().markAllRead(this.me().id);
+  }
+
+  /* ---------- Contacts & calls — in memory; demo accounts pick up after a moment ---------- */
+
+  private contacts: (Contact & { ownerId: string })[] = [];
+  private contactsSeededFor = new Set<string>();
+  private calls: Call[] = [];
+  private demoCallScheduled = false;
+
+  private accountByEmail(email: string | null): Person | null {
+    const a = email ? this.accounts.find((x) => x.email.toLowerCase() === email.toLowerCase()) : undefined;
+    return a && a.id !== this.me().id ? { id: a.id, name: a.name, avatarUrl: a.avatarUrl ?? null } : null;
+  }
+
+  private myContacts() {
+    const me = this.me();
+    if (!this.contactsSeededFor.has(me.id)) {
+      this.contactsSeededFor.add(me.id);
+      const seed: [string, string | null, string | null, string | null][] = [
+        ['Karim Haddad', 'karim.h@demo.dz', '+213 555 12 34 56', 'Study group partner'],
+        ['Lina Mansouri', 'lina.m@demo.dz', null, null],
+        ['Dr. Amrani', 'teacher@demo.dz', '+213 21 00 00 00', 'Office hours on Tuesdays'],
+        ['Yasmine Bensalem', 'student@demo.dz', null, null],
+        ['Omar (parent)', null, '+213 661 00 11 22', 'No Halaqa account yet'],
+      ];
+      for (const [name, email, phone, note] of seed) {
+        if (email === me.email) continue;
+        this.contacts.push({ id: uid(), ownerId: me.id, name, email, phone, note, user: null, createdAt: inHours(-100) });
+      }
+    }
+    return this.contacts.filter((c) => c.ownerId === me.id);
+  }
+
+  private contactOut(c: Contact & { ownerId: string }): Contact {
+    return {
+      id: c.id, name: c.name, email: c.email, phone: c.phone, note: c.note, createdAt: c.createdAt,
+      user: this.accountByEmail(c.email),
+    };
+  }
+
+  private contactIn(input: ContactInput) {
+    const clean = (s: string) => s.trim() || null;
+    if (!input.name.trim()) throw new Error('Give the contact a name');
+    return { name: input.name.trim(), email: clean(input.email)?.toLowerCase() ?? null, phone: clean(input.phone), note: clean(input.note) };
+  }
+
+  async listContacts() {
+    await wait(250);
+    // Demo: someone calls you a little after you first open your contacts.
+    if (!this.demoCallScheduled) {
+      this.demoCallScheduled = true;
+      setTimeout(() => {
+        const me = useSession.getState().user;
+        if (!me || me.id === 's-karim') return;
+        this.calls.unshift({
+          id: uid(), caller: { id: 's-karim', name: 'Karim Haddad' }, callee: { id: me.id, name: me.name, avatarUrl: me.avatarUrl ?? null },
+          outgoing: false, status: 'ringing', createdAt: new Date().toISOString(), answeredAt: null, endedAt: null,
+        });
+      }, 25_000);
+    }
+    return this.myContacts().map((c) => this.contactOut(c)).sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  async getContact(id: string) {
+    const c = this.myContacts().find((x) => x.id === id);
+    if (!c) throw new Error('Contact not found');
+    return this.contactOut(c);
+  }
+
+  async createContact(input: ContactInput) {
+    await wait();
+    const c = { id: uid(), ownerId: this.me().id, ...this.contactIn(input), user: null, createdAt: new Date().toISOString() };
+    this.contacts.push(c);
+    return this.contactOut(c);
+  }
+
+  async updateContact(id: string, input: ContactInput) {
+    await wait();
+    const c = this.myContacts().find((x) => x.id === id);
+    if (!c) throw new Error('Contact not found');
+    Object.assign(c, this.contactIn(input));
+    return this.contactOut(c);
+  }
+
+  async deleteContact(id: string) {
+    await wait(200);
+    const me = this.me();
+    this.contacts = this.contacts.filter((c) => !(c.id === id && c.ownerId === me.id));
+  }
+
+  /** Demo calls move on by themselves: outgoing ones are answered after ~3 s; unanswered ones are missed after 45 s. */
+  private tick(call: Call) {
+    const age = Date.now() - Date.parse(call.createdAt);
+    if (call.status === 'ringing' && call.outgoing && age > 3000) {
+      call.status = 'accepted';
+      call.answeredAt = new Date(Date.parse(call.createdAt) + 3000).toISOString();
+    } else if (call.status === 'ringing' && age > 45_000) {
+      call.status = 'missed';
+      call.endedAt = new Date().toISOString();
+    }
+    return { ...call };
+  }
+
+  private myCalls() {
+    const me = this.me();
+    return this.calls.filter((c) => c.caller.id === me.id || c.callee.id === me.id);
+  }
+
+  private findCall(id: string) {
+    const call = this.myCalls().find((c) => c.id === id);
+    if (!call) throw new Error('Call not found');
+    return call;
+  }
+
+  async listCalls() {
+    await wait(200);
+    return this.myCalls().map((c) => this.tick(c));
+  }
+
+  async listIncomingCalls() {
+    return this.myCalls().map((c) => this.tick(c)).filter((c) => !c.outgoing && c.status === 'ringing');
+  }
+
+  async getCall(id: string) { return this.tick(this.findCall(id)); }
+
+  async startCall(calleeId: string) {
+    await wait(300);
+    const me = this.me();
+    const callee = this.accounts.find((a) => a.id === calleeId);
+    if (!callee || callee.id === me.id) throw new Error('This person doesn’t have a Halaqa account');
+    const call: Call = {
+      id: uid(), caller: { id: me.id, name: me.name, avatarUrl: me.avatarUrl ?? null }, callee: { id: callee.id, name: callee.name },
+      outgoing: true, status: 'ringing', createdAt: new Date().toISOString(), answeredAt: null, endedAt: null,
+    };
+    this.calls.unshift(call);
+    return { ...call };
+  }
+
+  async acceptCall(id: string) {
+    const call = this.findCall(id);
+    this.tick(call);
+    if (call.status !== 'ringing') throw new Error('This call is no longer ringing');
+    call.status = 'accepted';
+    call.answeredAt = new Date().toISOString();
+    return { ...call };
+  }
+
+  async declineCall(id: string) {
+    const call = this.findCall(id);
+    if (call.status === 'ringing' && !call.outgoing) {
+      call.status = 'declined';
+      call.endedAt = new Date().toISOString();
+    }
+    return { ...call };
+  }
+
+  async endCall(id: string) {
+    const call = this.findCall(id);
+    this.tick(call);
+    if (call.status === 'ringing') call.status = call.outgoing ? 'cancelled' : 'declined';
+    else if (call.status === 'accepted') call.status = 'ended';
+    call.endedAt ??= new Date().toISOString();
+    return { ...call };
+  }
+
+  async getCallCredentials(): Promise<JoinCredentials> {
+    // Demo calls never touch a media server.
+    return { serverUrl: '', token: '' };
+  }
+
+  /* ---------- Direct chats — in memory; demo people read and answer you ---------- */
+
+  private conversations: (Omit<Conversation, 'other' | 'unread' | 'otherReadAt' | 'lastMessage'> & {
+    a: Person; b: Person; readAt: Record<string, string | null>;
+  })[] = [];
+  private directMessages: DirectMessage[] = [];
+
+  private chatOf(id: string) {
+    const me = this.me();
+    const c = this.conversations.find((x) => x.id === id && (x.a.id === me.id || x.b.id === me.id));
+    if (!c) throw new Error('Chat not found');
+    return c;
+  }
+
+  private chatOut(c: MockApi['conversations'][number]): Conversation {
+    const me = this.me();
+    const other = c.a.id === me.id ? c.b : c.a;
+    const msgs = this.directMessages.filter((m) => m.conversationId === c.id);
+    const myRead = c.readAt[me.id];
+    return {
+      id: c.id, other, theme: c.theme, createdAt: c.createdAt, lastMessageAt: c.lastMessageAt,
+      lastMessage: msgs.at(-1) ?? null,
+      unread: msgs.filter((m) => m.senderId !== me.id && (!myRead || m.createdAt > myRead)).length,
+      otherReadAt: c.readAt[other.id] ?? null,
+    };
+  }
+
+  /** Demo: the other person reads your message, types, then answers. */
+  private demoReply(c: MockApi['conversations'][number], to: DirectMessage) {
+    const me = this.me();
+    const other = c.a.id === me.id ? c.b : c.a;
+    const replies = [
+      'Sounds good!', 'Thanks, I’ll take a look 👍', 'Can we go over it after class?', 'Got it, see you then.',
+      'Haha 😂', 'Perfect, thank you!', 'Let me check and get back to you.',
+    ];
+    setTimeout(() => {
+      c.readAt[other.id] = new Date().toISOString();
+      emitDemoChat({ type: 'read', conversationId: c.id, userId: other.id, at: c.readAt[other.id]! });
+    }, 1200);
+    setTimeout(() => emitDemoChat({ type: 'typing', conversationId: c.id, userId: other.id }), 1800);
+    setTimeout(() => emitDemoChat({ type: 'typing', conversationId: c.id, userId: other.id }), 3600);
+    setTimeout(() => {
+      const reply: DirectMessage = {
+        id: uid(), conversationId: c.id, clientId: uid(), senderId: other.id,
+        text: to.attachment && !to.text ? 'Thanks for the file!' : replies[Math.floor(Math.random() * replies.length)]!,
+        attachment: null, createdAt: new Date().toISOString(), reactions: [],
+      };
+      this.directMessages.push(reply);
+      c.lastMessageAt = reply.createdAt;
+      emitDemoChat({ type: 'message', conversationId: c.id, message: reply });
+    }, 5000);
+  }
+
+  private postDirect(c: MockApi['conversations'][number], message: DirectMessage) {
+    const existing = this.directMessages.find((m) => m.conversationId === c.id && m.clientId === message.clientId);
+    if (existing) return existing;
+    this.directMessages.push(message);
+    c.lastMessageAt = message.createdAt;
+    c.readAt[message.senderId] = message.createdAt;
+    emitDemoChat({ type: 'message', conversationId: c.id, message });
+    this.demoReply(c, message);
+    return message;
+  }
+
+  async listChats() {
+    await wait(200);
+    const me = this.me();
+    return this.conversations
+      .filter((c) => c.a.id === me.id || c.b.id === me.id)
+      .map((c) => this.chatOut(c))
+      .sort((x, y) => (y.lastMessageAt ?? y.createdAt).localeCompare(x.lastMessageAt ?? x.createdAt));
+  }
+
+  async openChat(userId: string) {
+    const me = this.me();
+    const account = this.accounts.find((a) => a.id === userId);
+    if (!account || account.id === me.id) throw new Error('This person doesn’t have a Halaqa account');
+    let c = this.conversations.find((x) => (x.a.id === me.id && x.b.id === userId) || (x.b.id === me.id && x.a.id === userId));
+    if (!c) {
+      c = {
+        id: uid(), a: { id: me.id, name: me.name, avatarUrl: me.avatarUrl ?? null }, b: { id: account.id, name: account.name },
+        theme: 'default', createdAt: new Date().toISOString(), lastMessageAt: null, readAt: {},
+      };
+      this.conversations.push(c);
+    }
+    return this.chatOut(c);
+  }
+
+  async getChat(id: string) { return this.chatOut(this.chatOf(id)); }
+
+  async listChatMessages(id: string, before?: string) {
+    await wait(150);
+    this.chatOf(id);
+    return this.directMessages
+      .filter((m) => m.conversationId === id && (!before || m.createdAt < before))
+      .slice(-40)
+      .reverse();
+  }
+
+  async sendChatMessage(id: string, message: { id: string; text: string }) {
+    await wait(200);
+    const c = this.chatOf(id);
+    return this.postDirect(c, {
+      id: uid(), conversationId: id, clientId: message.id, senderId: this.me().id, text: message.text.trim(),
+      attachment: null, createdAt: new Date().toISOString(), reactions: [],
+    });
+  }
+
+  async sendChatFile(id: string, message: { id: string; file: PickedFile; text?: string }) {
+    await wait(700);
+    const c = this.chatOf(id);
+    return this.postDirect(c, {
+      id: uid(), conversationId: id, clientId: message.id, senderId: this.me().id, text: message.text?.trim() || null,
+      attachment: { url: message.file.uri, name: message.file.name, mimeType: message.file.mimeType, size: 0 },
+      createdAt: new Date().toISOString(), reactions: [],
+    });
+  }
+
+  async reactToMessage(id: string, messageId: string, emoji: string | null) {
+    this.chatOf(id);
+    const me = this.me();
+    const m = this.directMessages.find((x) => x.id === messageId && x.conversationId === id);
+    if (!m) throw new Error('Message not found');
+    m.reactions = m.reactions.filter((r) => r.userId !== me.id);
+    if (emoji) m.reactions.push({ userId: me.id, emoji });
+    const out = { ...m, reactions: [...m.reactions] };
+    emitDemoChat({ type: 'reaction', conversationId: id, message: out });
+    return out;
+  }
+
+  async sendTyping() {}
+
+  async markChatRead(id: string) {
+    const c = this.chatOf(id);
+    c.readAt[this.me().id] = new Date().toISOString();
+    return this.chatOut(c);
+  }
+
+  async setChatTheme(id: string, theme: string) {
+    const c = this.chatOf(id);
+    c.theme = theme;
+    emitDemoChat({ type: 'theme', conversationId: id, theme, userId: this.me().id });
+    return this.chatOut(c);
+  }
+
+  async getChatRealtimeToken(): Promise<JoinCredentials> {
+    // Demo chats never touch a media server: events come from emitDemoChat.
+    return { serverUrl: '', token: '' };
   }
 
   /* ---------- Class chat history — in memory ---------- */

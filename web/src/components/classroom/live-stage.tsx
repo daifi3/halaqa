@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { CHAT_TOPIC, decodeChat, encodeChat, type ChatTransport } from '@/lib/chat';
 import { alert } from '@/lib/dialog';
+import { decodePoll, encodePoll, POLL_TOPIC, type PollTransport } from '@/lib/polls';
 import { decodeReaction, encodeReaction, REACTION_TOPIC, reactionId, type ReactionTransport } from '@/lib/reactions';
 import { decodeInk, encodeInk, INK_TOPIC, type InkTransport } from '@/lib/screen-ink';
 import { decodeScreen, encodeScreen, SCREEN_TOPIC, type ScreenSignal } from '@/lib/screen-share';
@@ -122,6 +123,16 @@ export function LiveStage({ room, isTeacher, onLeave }: { room: Room; isTeacher:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [lk, localParticipant]);
 
+  // Polls and quizzes: the sender is the participant LiveKit says sent it, so only the real teacher can run one.
+  const polls = useMemo<PollTransport>(() => ({
+    send: topic(POLL_TOPIC, encodePoll),
+    subscribe: (handler) => listen(POLL_TOPIC, (payload, p) => {
+      const msg = p && decodePoll(payload);
+      if (msg) handler(msg, { id: p.identity, name: p.name || p.identity, teacher: roleOf(p) === 'teacher' });
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [lk, localParticipant]);
+
   const screenSignal = useMemo<ScreenSignal>(() => ({
     send: topic(SCREEN_TOPIC, encodeScreen),
     subscribe: (handler) => listen(SCREEN_TOPIC, (payload, p) => {
@@ -230,6 +241,7 @@ export function LiveStage({ room, isTeacher, onLeave }: { room: Room; isTeacher:
       transport={transport}
       chat={chat}
       reactions={reactions}
+      polls={polls}
       screen={screen}
       screenSignal={screenSignal}
       ink={ink}

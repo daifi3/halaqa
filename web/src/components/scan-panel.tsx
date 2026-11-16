@@ -68,7 +68,7 @@ export function ScanPanel() {
         <Text variant="small" color={colors.muted}>Hold your teacher’s QR code up to your camera — you join as soon as it’s read.</Text>
       </div>
 
-      <div className="v center" style={{ position: 'relative', aspectRatio: '4 / 3', borderRadius: radius.lg, backgroundColor: colors.ink, overflow: 'hidden' }}>
+      <div className="v center" style={{ position: 'relative', aspectRatio: '4 / 3', borderRadius: radius.lg, backgroundColor: colors.inverse, overflow: 'hidden' }}>
         {/* Mirrored like any webcam preview; the scanner reads the unmirrored frames. */}
         <video ref={video} playsInline muted style={{
           position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)',

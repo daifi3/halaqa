@@ -447,7 +447,7 @@ const styles = StyleSheet.create({
   answerLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   rules: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: 16, gap: 14, ...shadow.card },
   rule: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  resultCard: { backgroundColor: colors.ink, borderRadius: radius.xl, padding: 24, alignItems: 'center', gap: 6 },
+  resultCard: { backgroundColor: colors.inverse, borderRadius: radius.xl, padding: 24, alignItems: 'center', gap: 6 },
   resultIcon: {
     width: 52, height: 52, borderRadius: 18, backgroundColor: colors.success,
     alignItems: 'center', justifyContent: 'center', marginBottom: 6,

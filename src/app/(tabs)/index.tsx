@@ -25,7 +25,7 @@ function ActionCard({ teacher }: { teacher: boolean }) {
       <PressableScale
         scaleTo={0.97}
         onPress={() => router.push(teacher ? '/room/new' : '/join')}
-        style={[styles.action, { backgroundColor: colors.ink }]}
+        style={[styles.action, { backgroundColor: colors.inverse }]}
       >
         <View style={[styles.actionIcon, { backgroundColor: tone }]}>
           <Ionicons name={teacher ? 'add' : 'keypad'} size={24} color="#fff" />

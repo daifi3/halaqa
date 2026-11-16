@@ -7,7 +7,7 @@ import { Text } from './text';
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
 const palette: Record<Variant, { bg: string; fg: string; border?: string }> = {
-  primary: { bg: colors.ink, fg: '#fff' },
+  primary: { bg: colors.inverse, fg: '#fff' },
   secondary: { bg: colors.surface, fg: colors.ink, border: colors.line },
   ghost: { bg: 'transparent', fg: colors.ink },
   danger: { bg: colors.danger, fg: '#fff' },

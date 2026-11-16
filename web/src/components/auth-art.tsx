@@ -40,7 +40,7 @@ export function AuthArt() {
   return (
     <aside className="auth-art v" style={{ margin: 16, borderRadius: radius.xl, backgroundColor: colors.surface, padding: '40px 48px', gap: 32, justifyContent: 'center', overflow: 'hidden' }}>
       <div className="h a-down" style={{ gap: 10 }}>
-        <span className="h center" style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: colors.ink }}>
+        <span className="h center" style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: colors.inverse }}>
           <Icon name="easel-outline" size={20} color="#fff" />
         </span>
         <Text variant="title">Halaqa</Text>

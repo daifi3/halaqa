@@ -130,7 +130,7 @@ export default function VaultDocumentDetails() {
                     error={shareError}
                   />
                 </View>
-                <IconButton icon="add" onPress={share} bg={colors.ink} color="#fff" size={54} />
+                <IconButton icon="add" onPress={share} bg={colors.inverse} color="#fff" size={54} />
               </View>
               <Animated.View layout={LinearTransition.springify()} style={{ gap: 8 }}>
                 {doc.sharedEmails.map((e) => (

@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', paddingHorizontal: 20, paddingTop: 8 },
   content: { padding: 20, gap: 16, paddingBottom: 40 },
   student: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  score: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.ink, borderRadius: radius.xl, padding: 20 },
+  score: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.inverse, borderRadius: radius.xl, padding: 20 },
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: 16, gap: 12, ...shadow.card },
   cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   optionLine: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: radius.md },

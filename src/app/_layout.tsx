@@ -9,6 +9,7 @@ import {
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import * as SystemUI from 'expo-system-ui';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -17,7 +18,8 @@ import { BiometricGate } from '@/components/biometric-gate';
 import { InboxBanner } from '@/components/inbox';
 import { useSecurityPrefs } from '@/store/security-prefs';
 import { useSession } from '@/store/session';
-import { colors } from '@/theme';
+import { colors, isDark } from '@/theme';
+import { useFollowSystemTheme } from '@/theme/use-follow-system';
 
 // WebRTC globals for LiveKit. Native only — the app targets iOS & Android.
 // Uses a runtime-guarded require() instead of a static import: a static
@@ -32,6 +34,8 @@ if (Platform.OS !== 'web') {
 }
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
+// The window behind every screen, so transitions and the keyboard never flash white in dark mode.
+SystemUI.setBackgroundColorAsync(colors.bg).catch(() => {});
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -46,6 +50,7 @@ export default function RootLayout() {
   const prefsHydrated = useSecurityPrefs((s) => s.hydrated);
   const signedIn = useSession((s) => !!s.user);
   const ready = fontsLoaded && hydrated && prefsHydrated;
+  useFollowSystemTheme();
 
   useEffect(() => {
     if (ready) SplashScreen.hideAsync().catch(() => {});
@@ -56,7 +61,7 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.bg }}>
       <SafeAreaProvider>
-        <StatusBar style="dark" />
+        <StatusBar style={isDark ? 'light' : 'dark'} />
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg }, animation: 'slide_from_right' }}>
           <Stack.Protected guard={!signedIn}>
             <Stack.Screen name="welcome" options={{ animation: 'fade' }} />
@@ -88,6 +93,10 @@ export default function RootLayout() {
             <Stack.Screen name="exam/attempt/[id]" />
             <Stack.Screen name="notifications" />
             <Stack.Screen name="inbox" />
+            <Stack.Screen name="contact/edit" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+            <Stack.Screen name="contact/[id]" />
+            <Stack.Screen name="chat/[id]" />
+            <Stack.Screen name="call/[id]" options={{ presentation: 'fullScreenModal', animation: 'fade', gestureEnabled: false, contentStyle: { backgroundColor: colors.stage } }} />
           </Stack.Protected>
         </Stack>
         <InboxBanner />

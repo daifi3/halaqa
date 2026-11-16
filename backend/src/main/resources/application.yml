@@ -43,6 +43,7 @@ halaqa:
     avatar-dir: ${AVATAR_DIR:./data/avatars}
     vault-dir: ${VAULT_DIR:./data/vault}
     homework-dir: ${HOMEWORK_DIR:./data/homework}
+    chat-dir: ${CHAT_DIR:./data/chat}
   auth:
     # Access tokens are short-lived; the app swaps its refresh token for a new pair when one expires.
     # Once the refresh token expires too, the user has to sign in again.

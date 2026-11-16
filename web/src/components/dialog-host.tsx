@@ -11,7 +11,7 @@ function ButtonRow({ buttons, onPick }: { buttons: DialogButton[]; onPick: (b: D
     <div className="h wrap" style={{ gap: 8, justifyContent: 'flex-end' }}>
       {ordered.map((b) => {
         const primary = b.style !== 'cancel';
-        const bg = b.style === 'destructive' ? colors.danger : primary ? colors.ink : colors.surfaceAlt;
+        const bg = b.style === 'destructive' ? colors.danger : primary ? colors.inverse : colors.surfaceAlt;
         return (
           <Pressable
             key={b.text}

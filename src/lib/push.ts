@@ -4,6 +4,7 @@ import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { AndroidImportance } from 'expo-notifications';
 import { router, type Href } from 'expo-router';
+import { useChats } from '@/store/chats';
 import { useEffect, useRef } from 'react';
 import { AppState, Platform } from 'react-native';
 import { useInbox, wantsKind } from '@/store/inbox';
@@ -16,13 +17,20 @@ import type { NotificationKind } from './types';
 const POLL_MS = 30_000;
 const native = Platform.OS === 'ios' || Platform.OS === 'android';
 
-type PushData = { notificationId?: string; kind?: NotificationKind; link?: string };
+type PushData = { notificationId?: string; kind?: NotificationKind | 'call' | 'chat'; link?: string; conversationId?: string };
 
 if (native) {
   // While the app is open: show the banner (unless that kind is turned off) and refresh the bell.
   Notifications.setNotificationHandler({
     handleNotification: async (n) => {
       const data = n.request.content.data as PushData;
+      // An open app shows its own ringing screen for calls (see use-incoming-calls).
+      if (data?.kind === 'call') return { shouldShowBanner: false, shouldShowList: false, shouldPlaySound: false, shouldSetBadge: false };
+      // A new chat message: no banner for the chat already on screen.
+      if (data?.kind === 'chat') {
+        const show = useChats.getState().activeId !== data.conversationId;
+        return { shouldShowBanner: show, shouldShowList: show, shouldPlaySound: show, shouldSetBadge: false };
+      }
       void useInbox.getState().refresh();
       const show = wantsKind(data?.kind);
       return { shouldShowBanner: show, shouldShowList: show, shouldPlaySound: show, shouldSetBadge: true };

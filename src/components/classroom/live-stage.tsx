@@ -9,6 +9,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Platform, StyleSheet } from 'react-native';
 import { api } from '@/lib/api';
 import { CHAT_TOPIC, decodeChat, encodeChat, type ChatTransport } from '@/lib/chat';
+import { decodePoll, encodePoll, POLL_TOPIC, type PollTransport } from '@/lib/polls';
 import { decodeReaction, encodeReaction, REACTION_TOPIC, reactionId, type ReactionTransport } from '@/lib/reactions';
 import { decodeInk, encodeInk, INK_TOPIC, type InkTransport } from '@/lib/screen-ink';
 import { decodeScreen, encodeScreen, SCREEN_TOPIC, type ScreenSignal } from '@/lib/screen-share';
@@ -127,6 +128,22 @@ export function LiveStage({ room, isTeacher, onLeave }: { room: Room; isTeacher:
     },
   }), [lk, localParticipant]);
 
+  // Polls and quizzes: the sender is the participant LiveKit says sent it, so only the real teacher can run one.
+  const polls = useMemo<PollTransport>(() => ({
+    send: (msg) => {
+      localParticipant.publishData(encodePoll(msg), { reliable: true, topic: POLL_TOPIC }).catch(() => {});
+    },
+    subscribe: (handler) => {
+      const onData = (payload: Uint8Array, p?: Participant, _k?: unknown, topic?: string) => {
+        if (topic !== POLL_TOPIC || !p) return;
+        const msg = decodePoll(payload);
+        if (msg) handler(msg, { id: p.identity, name: p.name || p.identity, teacher: roleOf(p) === 'teacher' });
+      };
+      lk.on(RoomEvent.DataReceived, onData);
+      return () => { lk.off(RoomEvent.DataReceived, onData); };
+    },
+  }), [lk, localParticipant]);
+
   const screenSignal = useMemo<ScreenSignal>(() => ({
     send: (msg) => {
       localParticipant.publishData(encodeScreen(msg), { reliable: true, topic: SCREEN_TOPIC }).catch(() => {});
@@ -229,6 +246,7 @@ export function LiveStage({ room, isTeacher, onLeave }: { room: Room; isTeacher:
       transport={transport}
       chat={chat}
       reactions={reactions}
+      polls={polls}
       screen={screen}
       screenSignal={screenSignal}
       ink={ink}

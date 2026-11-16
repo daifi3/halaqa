@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { demoChatTransport } from '@/lib/chat';
+import { demoPollTransport } from '@/lib/polls';
 import { demoReactionTransport } from '@/lib/reactions';
 import { noopInkTransport } from '@/lib/screen-ink';
 import { DEMO_ME, demoScreenSignal } from '@/lib/screen-share';
@@ -26,6 +27,7 @@ export function DemoStage({ room, isTeacher, onLeave }: { room: Room; isTeacher:
   const [speaker, setSpeaker] = useState<number>(-1);
   const chat = useMemo(() => demoChatTransport(room.teacher.name, isTeacher), [room.teacher.name, isTeacher]);
   const reactions = useMemo(() => demoReactionTransport(isTeacher), [isTeacher]);
+  const polls = useMemo(() => demoPollTransport(isTeacher, room.teacher.name), [isTeacher, room.teacher.name]);
   const [sharing, setSharing] = useState(false);
   const [studentShare, setStudentShare] = useState<string | null>(null);
   const screenSignal = useMemo(() => demoScreenSignal(isTeacher, room.teacher.name, setStudentShare), [isTeacher, room.teacher.name]);
@@ -70,6 +72,7 @@ export function DemoStage({ room, isTeacher, onLeave }: { room: Room; isTeacher:
       transport={noopTransport}
       chat={chat}
       reactions={reactions}
+      polls={polls}
       screen={screen}
       screenSignal={screenSignal}
       ink={noopInkTransport}

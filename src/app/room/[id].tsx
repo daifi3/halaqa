@@ -189,14 +189,14 @@ export default function RoomDetails() {
                 </View>
                 <View style={{ flexDirection: 'row', gap: 8 }}>
                   <PressableScale style={[styles.copy, showQr && styles.copyActive]} onPress={() => setShowQr((v) => !v)}>
-                    <Ionicons name="qr-code-outline" size={18} color={showQr ? '#fff' : colors.ink} />
+                    <Ionicons name="qr-code-outline" size={18} color={showQr ? '#fff' : colors.inverse} />
                   </PressableScale>
                   <PressableScale
                     style={styles.copy}
                     onPress={async () => { await Clipboard.setStringAsync(room.joinCode); setCopied(true); }}
                   >
-                    <Ionicons name={copied ? 'checkmark' : 'copy-outline'} size={18} color={colors.ink} />
-                    <Text variant="small">{copied ? 'Copied' : 'Copy'}</Text>
+                    <Ionicons name={copied ? 'checkmark' : 'copy-outline'} size={18} color={colors.inverse} />
+                    <Text variant="small" color={colors.inverse}>{copied ? 'Copied' : 'Copy'}</Text>
                   </PressableScale>
                 </View>
               </Animated.View>
@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
   teacherRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
   tiles: { flexDirection: 'row', gap: 10 },
   tile: { flex: 1, backgroundColor: colors.surface, borderRadius: radius.lg, padding: 14, gap: 4, ...shadow.card },
-  codeCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.ink, borderRadius: radius.xl, padding: 20 },
+  codeCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.inverse, borderRadius: radius.xl, padding: 20 },
   copy: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#fff', paddingHorizontal: 14, paddingVertical: 10, borderRadius: radius.pill },
   copyActive: { backgroundColor: colors.primary },
   rsvpCard: { backgroundColor: colors.surface, borderRadius: radius.xl, padding: 16, gap: 14, ...shadow.card },

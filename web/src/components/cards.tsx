@@ -58,8 +58,8 @@ export function RoomCard({ room, index, onPress }: { room: Room; index: number; 
             <PersonAvatar person={room.teacher} size={28} />
             <Text variant="small" color={live ? 'rgba(255,255,255,0.8)' : colors.inkSoft}>{room.teacher.name}</Text>
           </div>
-          <span className="h center" style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: live ? '#fff' : colors.ink }}>
-            <Icon name="arrow-forward" size={18} color={live ? colors.ink : '#fff'} />
+          <span className="h center" style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: live ? '#fff' : colors.inverse }}>
+            <Icon name="arrow-forward" size={18} color={live ? colors.inverse : '#fff'} />
           </span>
         </div>
       </Pressable>
@@ -241,7 +241,7 @@ export function ActionCard({ tone, icon, title, body, onPress, delayMs = 60 }: {
       <Pressable
         onClick={onPress}
         scaleTo={0.97}
-        style={{ ...row, gap: 14, padding: 18, borderRadius: radius.xl, backgroundColor: colors.ink, boxShadow: 'var(--shadow-float)' }}
+        style={{ ...row, gap: 14, padding: 18, borderRadius: radius.xl, backgroundColor: colors.inverse, boxShadow: 'var(--shadow-float)' }}
       >
         <span className="h center" style={{ width: 48, height: 48, borderRadius: 16, backgroundColor: tone, flexShrink: 0 }}>
           <Icon name={icon} size={24} color="#fff" />

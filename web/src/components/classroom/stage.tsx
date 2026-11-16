@@ -8,6 +8,7 @@ import { chatId, type ChatMessage, type ChatTransport } from '@/lib/chat';
 import { alert } from '@/lib/dialog';
 import { formatClock } from '@/lib/format';
 import { reactionId, type Reaction, type ReactionEmoji, type ReactionTransport } from '@/lib/reactions';
+import type { PollTransport } from '@/lib/polls';
 import type { InkTransport } from '@/lib/screen-ink';
 import type { ScreenSignal } from '@/lib/screen-share';
 import type { Room } from '@/lib/types';
@@ -17,8 +18,10 @@ import { colors, radius } from '@/theme';
 import { ChatPanel } from './chat-panel';
 import { ControlBar } from './control-bar';
 import { ParticipantTile, type TileInfo } from './participant-tile';
+import { PollPanel } from './poll-panel';
 import { FLOAT_MS, FloatingReactions, ReactionPicker } from './reactions';
 import { RequestCard, ScreenView, StudentShareBanner, TeacherSharePanel } from './screen-share';
+import { usePolls } from './use-polls';
 import { useScreenInk } from './use-screen-ink';
 import { useScreenShare, type ScreenCapture } from './use-screen-share';
 import { Whiteboard } from './whiteboard';
@@ -37,6 +40,8 @@ export interface StageProps {
   transport: WbTransport;
   chat: ChatTransport;
   reactions: ReactionTransport;
+  /** Live polls and quizzes. */
+  polls: PollTransport;
   screen: ScreenCapture;
   screenSignal: ScreenSignal;
   /** Drawings on the shared screen. */
@@ -286,6 +291,8 @@ export function Stage(props: StageProps) {
   const elapsed = useElapsed();
   const chat = useChat(props.chat, props.me, isTeacher, room.id);
   const reactions = useReactions(props.reactions);
+  const polls = usePolls(props.polls, isTeacher, connection === 'connected');
+  const studentCount = tiles.filter((t) => !t.isTeacher).length;
   const [panel, setPanel] = useState<'react' | 'share' | null>(null);
   const togglePanel = (p: 'react' | 'share') => setPanel((cur) => (cur === p ? null : p));
   const capture = props.screen;
@@ -408,6 +415,13 @@ export function Stage(props: StageProps) {
   const actions = (size: number) => (
     <>
       {isTeacher && anyStudentTalking && <TopButton size={size} icon="mic-off-outline" onPress={muteAll} label="Mute all students" />}
+      {(isTeacher || polls.view) && (
+        <TopButton size={size} icon="stats-chart" active={polls.live || polls.open} onPress={polls.open ? polls.hide : polls.show} label="Polls and quizzes">
+          {!isTeacher && polls.unseen && (
+            <span className="a-zoom" style={{ position: 'absolute', top: -1, right: -1, width: 14, height: 14, borderRadius: 7, backgroundColor: colors.danger, border: `2px solid ${colors.stage}` }} />
+          )}
+        </TopButton>
+      )}
       <TopButton size={size} icon={panel === 'react' ? 'close' : 'happy-outline'} active={panel === 'react'} onPress={() => togglePanel('react')} label="Reactions" />
       <TopButton
         size={size}
@@ -499,6 +513,8 @@ export function Stage(props: StageProps) {
           </div>
 
           <FloatingReactions reactions={reactions.floating} bottom={100} />
+
+          {polls.open && <PollPanel polls={polls} isTeacher={isTeacher} studentCount={studentCount} />}
         </div>
 
         {chat.open && <ChatPanel docked messages={chat.messages} onSend={chat.send} onClose={chat.hide} />}
@@ -551,6 +567,8 @@ export function Stage(props: StageProps) {
 
       {/* Starts just above the control bar. */}
       <FloatingReactions reactions={reactions.floating} bottom={110} />
+
+      {polls.open && <PollPanel polls={polls} isTeacher={isTeacher} studentCount={studentCount} />}
 
       {chat.open && <ChatPanel messages={chat.messages} onSend={chat.send} onClose={chat.hide} />}
     </div>

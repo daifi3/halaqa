@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Button } from '@/components/ui/button';
+import { ChoiceRow } from '@/components/ui/choice';
 import { Icon, type IconName } from '@/components/ui/icon';
 import { Avatar, delay, ToggleRow } from '@/components/ui/misc';
 import { Pressable } from '@/components/ui/pressable';
@@ -13,9 +14,11 @@ import { pickFile, squareImage } from '@/lib/files';
 import { formatDay } from '@/lib/format';
 import { biometricRecordOf, useSecurityPrefs } from '@/store/security-prefs';
 import { useMe, useSession } from '@/store/session';
-import { colors, radius } from '@/theme';
+import { colors, radius, setThemePref, themePref, type ThemePref } from '@/theme';
 import { PageHeader } from '@/components/ui/screen';
 import { TabPage } from './tab-page';
+// Only `version` is bundled; bump it in web/package.json for each release.
+import { version as APP_VERSION } from '../../../package.json';
 
 function Row({ icon, label, value }: { icon: IconName; label: string; value: string }) {
   return (
@@ -159,7 +162,29 @@ export default function Profile() {
         />
       </div>
 
-      <div className="a-down" style={{ ...delay(260), marginTop: 12 }}>
+      <div className="v a-down" style={{ ...delay(240), backgroundColor: colors.surface, borderRadius: radius.lg, padding: '14px 16px', gap: 14 }}>
+        <div className="h" style={{ gap: 12 }}>
+          <span className="h center" style={{ width: 40, height: 40, borderRadius: 14, backgroundColor: colors.primary + '22', flexShrink: 0 }}>
+            <Icon name="contrast-outline" size={20} color={colors.primary} />
+          </span>
+          <div className="v flex1" style={{ gap: 2 }}>
+            <Text variant="bodyStrong">Appearance</Text>
+            <Text variant="small" color={colors.muted}>System follows your device’s light or dark setting</Text>
+          </div>
+        </div>
+        <ChoiceRow<ThemePref>
+          wrap
+          value={themePref}
+          onChange={(pref) => { if (pref !== themePref) setThemePref(pref); }}
+          options={[
+            { value: 'system', label: 'System' },
+            { value: 'light', label: 'Light' },
+            { value: 'dark', label: 'Dark' },
+          ]}
+        />
+      </div>
+
+      <div className="a-down" style={{ ...delay(280), marginTop: 12 }}>
         <Button
           title="Sign out"
           variant="secondary"
@@ -173,6 +198,10 @@ export default function Profile() {
           }
         />
       </div>
+
+      <Text variant="small" color={colors.muted} style={{ textAlign: 'center', marginTop: 8 }}>
+        Halaqa · Version {APP_VERSION} · Web
+      </Text>
       </div>
       </div>
     </TabPage>

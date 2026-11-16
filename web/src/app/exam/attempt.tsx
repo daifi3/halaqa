@@ -209,7 +209,7 @@ export default function AttemptDetails() {
         </div>
       </div>
 
-      <div className="h a-down" style={{ ...delay(40), backgroundColor: colors.ink, borderRadius: radius.xl, padding: 20, gap: 12 }}>
+      <div className="h a-down" style={{ ...delay(40), backgroundColor: colors.inverse, borderRadius: radius.xl, padding: 20, gap: 12 }}>
         <div className="v flex1">
           <Text variant="label" color="rgba(255,255,255,0.6)">{attempt.finalizedAt ? 'Final grade' : 'Grade · not final'}</Text>
           <Text variant="display" color="#fff">{formatGrade(grade)}<Text variant="title" color="rgba(255,255,255,0.6)"> / {scale}</Text></Text>

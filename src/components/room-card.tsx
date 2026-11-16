@@ -39,7 +39,7 @@ export function RoomCard({ room, index, onPress }: { room: Room; index: number; 
             <Text variant="small" color={live ? 'rgba(255,255,255,0.8)' : colors.inkSoft}>{room.teacher.name}</Text>
           </View>
           <View style={[styles.go, live && { backgroundColor: '#fff' }]}>
-            <Ionicons name="arrow-forward" size={18} color={live ? colors.ink : '#fff'} />
+            <Ionicons name="arrow-forward" size={18} color={live ? colors.inverse : '#fff'} />
           </View>
         </View>
       </PressableScale>
@@ -58,5 +58,5 @@ const styles = StyleSheet.create({
   },
   bottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   teacher: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  go: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
+  go: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.inverse, alignItems: 'center', justifyContent: 'center' },
 });

@@ -66,8 +66,8 @@ function Navigator({ exam, attempt, index, flagged, onJump }: {
             aria-current={current}
             style={{
               position: 'relative', width: 38, height: 38, borderRadius: 19, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              backgroundColor: current ? colors.ink : answered ? colors.primarySoft : colors.surface,
-              border: `1.5px solid ${current ? colors.ink : answered ? colors.primarySoft : colors.line}`,
+              backgroundColor: current ? colors.inverse : answered ? colors.primarySoft : colors.surface,
+              border: `1.5px solid ${current ? colors.inverse : answered ? colors.primarySoft : colors.line}`,
             }}
           >
             <Text variant="small" color={current ? '#fff' : answered ? colors.primary : colors.inkSoft} style={{ fontWeight: 700 }}>{i + 1}</Text>

@@ -22,7 +22,7 @@ export function EmailAdder({ value, onChange, onAdd, placeholder = 'student@emai
         error={error}
         style={{ flex: 1, minWidth: 0 }}
       />
-      <IconButton icon="add" onPress={onAdd} bg={colors.ink} color="#fff" size={54} label="Add email" />
+      <IconButton icon="add" onPress={onAdd} bg={colors.inverse} color="#fff" size={54} label="Add email" />
     </div>
   );
 }

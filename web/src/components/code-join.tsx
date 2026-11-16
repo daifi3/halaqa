@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
+import { extractJoinCode } from '@/lib/links';
 import { useBack } from '@/lib/navigation';
 import { colors, radius } from '@/theme';
 import { ScanPanel } from './scan-panel';
@@ -62,6 +63,38 @@ export function CodeJoin({ title, button, demoCode, join }: {
     }
   }
 
+  function fail(message: string) {
+    setError(message);
+    setShake((n) => n + 1);
+    navigator.vibrate?.(60);
+  }
+
+  /** Fills the cells from pasted text and joins straight away. */
+  function applyPasted(text: string) {
+    const pasted = extractJoinCode(text);
+    if (!pasted) {
+      fail(text.trim() ? 'No valid code found in what you copied' : 'Your clipboard is empty');
+      return;
+    }
+    setCode(pasted);
+    setError(null);
+    input.current?.blur();
+    void run(pasted);
+  }
+
+  async function pasteFromClipboard() {
+    let text: string;
+    try {
+      text = await navigator.clipboard.readText();
+    } catch {
+      // Clipboard reading is blocked or unsupported here; a normal paste still works.
+      input.current?.focus();
+      setError(`Clipboard access was blocked — press ${/Mac|iPhone|iPad/.test(navigator.userAgent) ? '⌘' : 'Ctrl'}+V to paste instead`);
+      return;
+    }
+    applyPasted(text);
+  }
+
   useEffect(() => {
     if (autoJoin) void run(linked);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once for the link we were opened with
@@ -92,18 +125,23 @@ export function CodeJoin({ title, button, demoCode, join }: {
             ref={input}
             value={code}
             autoFocus={!autoJoin}
-            maxLength={LENGTH}
             autoCapitalize="characters"
             autoComplete="one-time-code"
             spellCheck={false}
             aria-label="Join code"
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
+            onPaste={(e) => { e.preventDefault(); applyPasted(e.clipboardData.getData('text')); }}
             onChange={(e) => { setCode(e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, LENGTH)); setError(null); }}
             onKeyDown={(e) => { if (e.key === 'Enter' && code.length === LENGTH) void run(code); }}
             style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', caretColor: 'transparent' }}
           />
         </div>
+        <Pressable onClick={() => void pasteFromClipboard()} disabled={loading}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, alignSelf: 'flex-start', padding: '8px 12px', borderRadius: 999, backgroundColor: colors.studentSoft }}>
+          <Icon name="clipboard-outline" size={16} color={colors.student} />
+          <Text variant="bodyStrong" color={colors.student}>Paste code</Text>
+        </Pressable>
         {error ? <Text variant="small" color={colors.danger}>{error}</Text> : <Text variant="small" color={colors.muted}>Demo code: {demoCode}</Text>}
 
         <Button title={button} icon="enter-outline" accent={colors.student} loading={loading} disabled={code.length < LENGTH} onPress={() => run(code)} />

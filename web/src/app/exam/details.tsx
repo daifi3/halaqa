@@ -260,7 +260,7 @@ function StudentView({ exam, attempt }: { exam: Exam; attempt: ExamAttempt | nul
     const { earned, total, ungraded, grade, scale } = scoreAttempt(exam, attempt);
     return (
       <div className="v a-down" style={{ ...delay(140), gap: 14 }}>
-        <div className="v" style={{ backgroundColor: colors.ink, borderRadius: radius.xl, padding: 24, alignItems: 'center', gap: 6 }}>
+        <div className="v" style={{ backgroundColor: colors.inverse, borderRadius: radius.xl, padding: 24, alignItems: 'center', gap: 6 }}>
           <span className="h center" style={{ width: 52, height: 52, borderRadius: 18, backgroundColor: colors.success, marginBottom: 6 }}>
             <Icon name={attempt.finish ? 'checkmark-done' : 'hourglass-outline'} size={26} color="#fff" />
           </span>

@@ -192,7 +192,7 @@ const styles = StyleSheet.create({
   lockInner: { flex: 1, padding: 24, justifyContent: 'space-between' },
   lockCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   lockIcon: {
-    width: 96, height: 96, borderRadius: 34, backgroundColor: colors.ink,
+    width: 96, height: 96, borderRadius: 34, backgroundColor: colors.inverse,
     alignItems: 'center', justifyContent: 'center', marginBottom: 12, ...shadow.float,
   },
   lockError: {

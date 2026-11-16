@@ -9,6 +9,7 @@ import Home from './app/tabs/home';
 import Courses from './app/tabs/courses';
 import Exams from './app/tabs/exams';
 import Recordings from './app/tabs/recordings';
+import Contacts from './app/tabs/contacts';
 import Profile from './app/tabs/profile';
 import Welcome from './app/welcome';
 import LogIn from './app/log-in';
@@ -38,6 +39,9 @@ const NewExam = lazy(() => import('./app/exam/new'));
 const ExamDetails = lazy(() => import('./app/exam/details'));
 const TakeExam = lazy(() => import('./app/exam/take'));
 const AttemptDetails = lazy(() => import('./app/exam/attempt'));
+const ContactDetails = lazy(() => import('./app/contact/details'));
+const EditContact = lazy(() => import('./app/contact/edit'));
+const CallPage = lazy(() => import('./app/call'));
 
 /** Signed-in screens. A link opened while signed out (e.g. a join QR) comes back here after signing in. */
 function Protected({ children }: { children: ReactNode }) {
@@ -90,6 +94,7 @@ const router = createBrowserRouter(
         <Route path="courses" element={<Courses />} />
         <Route path="exams" element={<Exams />} />
         <Route path="recordings" element={<Recordings />} />
+        <Route path="contacts" element={<Contacts />} />
         <Route path="profile" element={<Profile />} />
 
         <Route path="/room/new" element={<NewRoom />} />
@@ -110,11 +115,14 @@ const router = createBrowserRouter(
         <Route path="/exam/new" element={<NewExam />} />
         <Route path="/exam/attempt/:id" element={<AttemptDetails />} />
         <Route path="/exam/:id" element={<ExamDetails />} />
+        <Route path="/contact/edit" element={<EditContact />} />
+        <Route path="/contact/:id" element={<ContactDetails />} />
       </Route>
 
       {/* Full-window screens: the live class, taking an exam, the camera, players and viewers. */}
       <Route path="/classroom/:id" element={<Protected><Classroom /></Protected>} />
       <Route path="/exam/take/:id" element={<Protected><TakeExam /></Protected>} />
+      <Route path="/call/:id" element={<Protected><CallPage /></Protected>} />
       <Route path="/scan" element={<Protected><Scan /></Protected>} />
       <Route path="/recording/:id" element={<Protected><RecordingPlayer /></Protected>} />
       <Route path="/viewer" element={<Protected><Viewer /></Protected>} />

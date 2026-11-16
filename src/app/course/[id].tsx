@@ -95,14 +95,14 @@ export default function CourseDetails() {
               </View>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <PressableScale style={[styles.copy, showQr && styles.copyActive]} onPress={() => setShowQr((v) => !v)}>
-                  <Ionicons name="qr-code-outline" size={18} color={showQr ? '#fff' : colors.ink} />
+                  <Ionicons name="qr-code-outline" size={18} color={showQr ? '#fff' : colors.inverse} />
                 </PressableScale>
                 <PressableScale
                   style={styles.copy}
                   onPress={async () => { await Clipboard.setStringAsync(course.joinCode); setCopied(true); }}
                 >
-                  <Ionicons name={copied ? 'checkmark' : 'copy-outline'} size={18} color={colors.ink} />
-                  <Text variant="small">{copied ? 'Copied' : 'Copy'}</Text>
+                  <Ionicons name={copied ? 'checkmark' : 'copy-outline'} size={18} color={colors.inverse} />
+                  <Text variant="small" color={colors.inverse}>{copied ? 'Copied' : 'Copy'}</Text>
                 </PressableScale>
               </View>
             </Animated.View>
@@ -127,7 +127,7 @@ export default function CourseDetails() {
                     error={inviteError}
                   />
                 </View>
-                <IconButton icon="add" onPress={invite} bg={colors.ink} color="#fff" size={54} />
+                <IconButton icon="add" onPress={invite} bg={colors.inverse} color="#fff" size={54} />
               </View>
               <Animated.View layout={LinearTransition.springify()} style={{ gap: 8 }}>
                 {course.invitedEmails.map((e) => (
@@ -222,7 +222,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 8 },
   content: { padding: 20, gap: 24, paddingBottom: 40 },
   teacherRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
-  codeCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.ink, borderRadius: radius.xl, padding: 20 },
+  codeCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.inverse, borderRadius: radius.xl, padding: 20 },
   copy: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#fff', paddingHorizontal: 14, paddingVertical: 10, borderRadius: radius.pill },
   copyActive: { backgroundColor: colors.primary },
   invite: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface, borderRadius: radius.md, padding: 10 },

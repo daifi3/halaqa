@@ -57,7 +57,7 @@ export function QuestionEditor({ index, question: q, onChange, onRemove, showErr
   return (
     <div className="v a-down" style={{ backgroundColor: colors.surface, borderRadius: radius.lg, padding: 16, gap: 14, border: `1.5px solid ${problem ? colors.danger : 'transparent'}`, boxShadow: 'var(--shadow-card)' }}>
       <div className="h" style={{ gap: 10 }}>
-        <span className="h center" style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: colors.ink }}>
+        <span className="h center" style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: colors.inverse }}>
           <Text variant="small" color="#fff" style={{ fontWeight: 700 }}>{index + 1}</Text>
         </span>
         <Text variant="bodyStrong" className="flex1">Question {index + 1}</Text>
@@ -69,7 +69,7 @@ export function QuestionEditor({ index, question: q, onChange, onRemove, showErr
           const on = q.kind === kind;
           return (
             <Pressable key={kind} scaleTo={0.94} onClick={() => onChange(withKind(q, kind))} aria-pressed={on}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: radius.pill, backgroundColor: on ? colors.ink : colors.surfaceAlt }}>
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: radius.pill, backgroundColor: on ? colors.inverse : colors.surfaceAlt }}>
               <Icon name={QUESTION_KINDS[kind].icon} size={14} color={on ? '#fff' : colors.inkSoft} />
               <Text variant="small" color={on ? '#fff' : colors.inkSoft}>{QUESTION_KINDS[kind].label}</Text>
             </Pressable>

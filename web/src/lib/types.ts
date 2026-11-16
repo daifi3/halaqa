@@ -309,3 +309,85 @@ export interface Inbox {
   items: AppNotification[];
   unread: number;
 }
+
+/* ---------- Contacts & calls ---------- */
+
+/** One entry in your own address book. */
+export interface Contact {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  note: string | null;
+  /** The Halaqa account behind the email — who a call rings. Null: no account, so no in-app calls. */
+  user: Person | null;
+  /** ISO date-time */
+  createdAt: string;
+}
+
+/** The contact form. Empty strings mean "not set". */
+export interface ContactInput {
+  name: string;
+  email: string;
+  phone: string;
+  note: string;
+}
+
+export type CallStatus = 'ringing' | 'accepted' | 'declined' | 'missed' | 'cancelled' | 'ended';
+
+/** A one-to-one audio call over LiveKit. */
+export interface Call {
+  id: string;
+  caller: Person;
+  callee: Person;
+  /** You started it. */
+  outgoing: boolean;
+  status: CallStatus;
+  /** ISO date-times */
+  createdAt: string;
+  answeredAt: string | null;
+  endedAt: string | null;
+}
+
+/* ---------- Direct chats ---------- */
+
+/** A file sent in a chat. `url` downloads it. */
+export interface ChatAttachment {
+  url: string;
+  name: string;
+  mimeType: string | null;
+  size: number;
+}
+
+export interface MessageReaction {
+  userId: string;
+  emoji: string;
+}
+
+/** A message in a one-to-one chat: text, a file, or both. */
+export interface DirectMessage {
+  id: string;
+  conversationId: string;
+  /** The id the sending app picked; matches an optimistic copy to the saved one. */
+  clientId: string;
+  senderId: string;
+  text: string | null;
+  attachment: ChatAttachment | null;
+  /** ISO date-time */
+  createdAt: string;
+  reactions: MessageReaction[];
+}
+
+/** A one-to-one chat, from your side. */
+export interface Conversation {
+  id: string;
+  other: Person;
+  /** One of CHAT_THEMES' ids; both people see the same theme. */
+  theme: string;
+  lastMessage: DirectMessage | null;
+  unread: number;
+  /** When the other person last read the chat (drives "Seen"). */
+  otherReadAt: string | null;
+  lastMessageAt: string | null;
+  createdAt: string;
+}

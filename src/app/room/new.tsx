@@ -210,7 +210,7 @@ export default function NewRoom() {
                   error={error}
                 />
               </View>
-              <IconButton icon="add" onPress={addEmail} bg={colors.ink} color="#fff" size={54} />
+              <IconButton icon="add" onPress={addEmail} bg={colors.inverse} color="#fff" size={54} />
             </View>
             <Animated.View layout={LinearTransition.springify()} style={styles.emails}>
               {emails.map((e) => (

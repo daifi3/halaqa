@@ -1,9 +1,13 @@
+import { readThemePref, resolveScheme } from './scheme';
+
+export { setThemePref, type ThemePref } from './scheme';
+
 /**
  * Halaqa design tokens.
  * Warm paper background, deep ink text, one confident indigo accent.
  * The classroom itself switches to a dark "stage" palette so video pops.
  */
-export const colors = {
+const light = {
   bg: '#F4F2EE',
   surface: '#FFFFFF',
   surfaceAlt: '#ECE9E3',
@@ -32,7 +36,51 @@ export const colors = {
   stageLine: '#2A2B33',
   stageText: '#F2F2F5',
   stageMuted: '#9A9BA6',
-} as const;
+
+  /** Dark "hero" surfaces with white text on them (main actions, code cards). Stays dark in both modes. */
+  inverse: '#16171C',
+};
+
+export type Palette = typeof light;
+
+/** Same roles after dark: warm charcoal surfaces, light ink, accents lifted a little for contrast. */
+const dark: Palette = {
+  bg: '#111215',
+  surface: '#1B1C21',
+  surfaceAlt: '#25262D',
+  ink: '#F2F1EE',
+  inkSoft: '#C9C8CF',
+  muted: '#8E8F99',
+  line: '#2D2E36',
+
+  primary: '#6A63F0',
+  primarySoft: '#272550',
+  primaryInk: '#FFFFFF',
+
+  teacher: '#6A63F0',
+  teacherSoft: '#272550',
+  student: '#E8854F',
+  studentSoft: '#3A2518',
+
+  success: '#2DB37E',
+  successSoft: '#14342A',
+  danger: '#EF5A5F',
+  dangerSoft: '#3D1C1F',
+
+  stage: '#0F1014',
+  stageCard: '#1B1C22',
+  stageLine: '#2A2B33',
+  stageText: '#F2F2F5',
+  stageMuted: '#9A9BA6',
+
+  inverse: '#2C2D37',
+};
+
+/** The saved choice ("system" follows the phone). */
+export const themePref = readThemePref();
+export const scheme = resolveScheme(themePref);
+export const isDark = scheme === 'dark';
+export const colors: Palette = isDark ? dark : light;
 
 export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 28, xxxl: 40 } as const;
 export const radius = { sm: 10, md: 14, lg: 20, xl: 28, pill: 999 } as const;

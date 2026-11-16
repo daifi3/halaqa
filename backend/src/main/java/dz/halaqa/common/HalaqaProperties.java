@@ -10,7 +10,7 @@ public record HalaqaProperties(String publicBaseUrl, LiveKit livekit, Storage st
                           boolean recordingEnabled) {}
 
     /** Local-disk folders for uploaded files. Swap for S3/R2 in production. */
-    public record Storage(String avatarDir, String vaultDir, String homeworkDir) {}
+    public record Storage(String avatarDir, String vaultDir, String homeworkDir, String chatDir) {}
 
     /** How long an access token works before the app must refresh it, and how long a refresh token lasts. */
     public record Auth(Duration accessTokenTtl, Duration refreshTokenTtl) {}

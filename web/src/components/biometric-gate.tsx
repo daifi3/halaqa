@@ -38,7 +38,7 @@ function LockScreen({ name, credentialId, onUnlocked, onSignOut }: {
   return (
     <div className="v a-fade" style={{ position: 'fixed', inset: 0, zIndex: 100, backgroundColor: colors.bg, padding: 24 }}>
       <div className="v flex1 center" style={{ gap: 12 }}>
-        <span className="h center a-zoom" style={{ width: 96, height: 96, borderRadius: 34, backgroundColor: colors.ink, marginBottom: 12, boxShadow: 'var(--shadow-float)' }}>
+        <span className="h center a-zoom" style={{ width: 96, height: 96, borderRadius: 34, backgroundColor: colors.inverse, marginBottom: 12, boxShadow: 'var(--shadow-float)' }}>
           <Icon name="finger-print" size={46} color="#fff" />
         </span>
         <Text variant="title" style={{ textAlign: 'center' }}>Halaqa is locked</Text>

@@ -11,6 +11,7 @@ import { api } from '@/lib/api';
 import { chatId, type ChatMessage, type ChatTransport } from '@/lib/chat';
 import { formatClock } from '@/lib/format';
 import { reactionId, type Reaction, type ReactionEmoji, type ReactionTransport } from '@/lib/reactions';
+import type { PollTransport } from '@/lib/polls';
 import type { InkTransport } from '@/lib/screen-ink';
 import type { ScreenSignal } from '@/lib/screen-share';
 import type { Room } from '@/lib/types';
@@ -20,8 +21,10 @@ import { colors, radius } from '@/theme';
 import { ChatPanel } from './chat-panel';
 import { ControlBar } from './control-bar';
 import { ParticipantTile, type TileInfo } from './participant-tile';
+import { PollPanel } from './poll-panel';
 import { FLOAT_MS, FloatingReactions, ReactionPicker } from './reactions';
 import { InkLayer, RequestCard, ScreenView, StudentShareBanner, TeacherSharePanel } from './screen-share';
+import { usePolls } from './use-polls';
 import { useScreenInk } from './use-screen-ink';
 import { useScreenShare, type ScreenCapture } from './use-screen-share';
 import { Whiteboard } from './whiteboard';
@@ -40,6 +43,8 @@ export interface StageProps {
   transport: WbTransport;
   chat: ChatTransport;
   reactions: ReactionTransport;
+  /** Live polls and quizzes. */
+  polls: PollTransport;
   screen: ScreenCapture;
   screenSignal: ScreenSignal;
   /** Drawings on the shared screen. */
@@ -291,6 +296,8 @@ export function Stage(props: StageProps) {
   const chat = useChat(props.chat, props.me, isTeacher, room.id);
   const insets = useSafeAreaInsets();
   const reactions = useReactions(props.reactions);
+  const polls = usePolls(props.polls, isTeacher, connection === 'connected');
+  const studentCount = tiles.filter((t) => !t.isTeacher).length;
   const [panel, setPanel] = useState<'react' | 'share' | null>(null);
   const togglePanel = (p: 'react' | 'share') => setPanel((cur) => (cur === p ? null : p));
   const capture = props.screen;
@@ -360,6 +367,11 @@ export function Stage(props: StageProps) {
           onPress={() => (isTeacher ? togglePanel('share') : share.studentPress())}
           label={capture.sharing ? 'Stop sharing your screen' : 'Share your screen'}
         />
+        {(isTeacher || polls.view) && (
+          <TopButton icon="stats-chart" active={polls.live} onPress={polls.show} label="Polls and quizzes">
+            {!isTeacher && polls.unseen && <Animated.View entering={ZoomIn} style={[styles.badge, styles.dot]} />}
+          </TopButton>
+        )}
         <ChatButton unread={chat.unread} onPress={chat.show} />
       </Animated.View>
 
@@ -467,6 +479,8 @@ export function Stage(props: StageProps) {
       {/* Starts just above the control bar. */}
       <FloatingReactions reactions={reactions.floating} bottom={insets.bottom + 110} />
 
+      {polls.open && <PollPanel polls={polls} isTeacher={isTeacher} studentCount={studentCount} />}
+
       {chat.open && <ChatPanel messages={chat.messages} onSend={chat.send} onClose={chat.hide} />}
 
       {/* Sharing from this phone shares the phone's screen, so classmates' drawings go over the whole app: right where they drew them. */}
@@ -498,6 +512,7 @@ const styles = StyleSheet.create({
     position: 'absolute', top: -3, right: -3, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4,
     backgroundColor: colors.danger, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.stage,
   },
+  dot: { minWidth: 14, width: 14, height: 14, borderRadius: 7, paddingHorizontal: 0, top: -1, right: -1 },
   badgeText: { fontSize: 10, lineHeight: 12 },
   previewWrap: { position: 'absolute', left: 16, right: 16, zIndex: 5 },
   preview: {

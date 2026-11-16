@@ -110,6 +110,6 @@ export default function Exams() {
 
 const styles = StyleSheet.create({
   content: { padding: 20, gap: 20, paddingBottom: 140 },
-  action: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18, borderRadius: radius.xl, backgroundColor: colors.ink, ...shadow.float },
+  action: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18, borderRadius: radius.xl, backgroundColor: colors.inverse, ...shadow.float },
   actionIcon: { width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.teacher },
 });

@@ -1,6 +1,9 @@
 import { Suspense } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router';
 import { useMe } from '@/store/session';
+import { useIncomingCalls } from '@/lib/use-calls';
+import { useChatRealtime } from '@/lib/use-chat-realtime';
+import { ChatWidget } from './chat/chat-widget';
 import { InboxToasts, SidebarInboxLink, useInboxPolling } from './inbox';
 import { colors } from '@/theme';
 import { Icon, type IconName } from './ui/icon';
@@ -12,6 +15,7 @@ export const TABS: { path: string; label: string; on: IconName; off: IconName }[
   { path: '/courses', label: 'Courses', on: 'library', off: 'library-outline' },
   { path: '/exams', label: 'Exams', on: 'ribbon', off: 'ribbon-outline' },
   { path: '/recordings', label: 'Recordings', on: 'play-circle', off: 'play-circle-outline' },
+  { path: '/contacts', label: 'Contacts', on: 'people', off: 'people-outline' },
   { path: '/profile', label: 'Profile', on: 'person-circle', off: 'person-circle-outline' },
 ];
 
@@ -21,7 +25,8 @@ function sectionOf(pathname: string) {
   if (/^\/(courses|course|homework)\b/.test(pathname)) return 1;
   if (/^\/(exams|exam)\b/.test(pathname)) return 2;
   if (/^\/recordings\b/.test(pathname)) return 3;
-  if (/^\/(profile|vault|notifications|change-password)\b/.test(pathname)) return 4;
+  if (/^\/(contacts|contact)\b/.test(pathname)) return 4;
+  if (/^\/(profile|vault|notifications|change-password)\b/.test(pathname)) return 5;
   return -1;
 }
 
@@ -40,7 +45,7 @@ function Account() {
 }
 
 /**
- * The signed-in app around every page. Phones: the floating pill tab bar, on the five tabs only,
+ * The signed-in app around every page. Phones: the floating pill tab bar, on the tabs only,
  * with an indicator that springs between tabs. Desktop: a sidebar on every page.
  */
 export function TabsLayout() {
@@ -49,6 +54,10 @@ export function TabsLayout() {
   const onTab = TABS.some((t) => t.path === pathname);
   const index = Math.max(0, section);
   useInboxPolling();
+  // Someone calling you while the site is open.
+  useIncomingCalls();
+  // Live chat messages, typing and reactions, over LiveKit.
+  useChatRealtime();
 
   return (
     <div className="with-sidebar" style={{ minHeight: '100%' }}>
@@ -57,7 +66,7 @@ export function TabsLayout() {
       </Suspense>
       <nav className={`tabbar${onTab ? '' : ' pushed'}`} aria-label="Main">
         <Link to="/" className="sidebar-brand">
-          <span className="h center" style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: colors.ink }}>
+          <span className="h center" style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: colors.inverse }}>
             <Icon name="easel-outline" size={20} color="#fff" />
           </span>
           <Text variant="heading">Halaqa</Text>
@@ -81,6 +90,7 @@ export function TabsLayout() {
         <div className="sidebar-foot"><SidebarInboxLink active={pathname === '/inbox'} /><Account /></div>
       </nav>
       <InboxToasts />
+      <ChatWidget />
     </div>
   );
 }
