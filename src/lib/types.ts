@@ -57,6 +57,19 @@ export interface RoomStudent {
   source: 'invite' | 'course' | 'code';
 }
 
+/** Someone a teacher teaches, gathered across all their courses and sessions. */
+export interface Student {
+  email: string;
+  /** Null until the student has signed up for an account. */
+  name: string | null;
+  userId: string | null;
+  avatarUrl?: string | null;
+  /** The teacher's courses this student is on (invited or joined with the code). */
+  courses: { id: string; title: string }[];
+  /** How many of the teacher's sessions they can attend. */
+  sessionCount: number;
+}
+
 export interface Course {
   id: string;
   title: string;

@@ -1,10 +1,7 @@
 package dz.halaqa.livekit;
 
-import dz.halaqa.recording.RecordingRepository;
-import dz.halaqa.room.RoomRepository;
+import dz.halaqa.recording.RecordingSync;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import java.nio.file.Path;
-import livekit.LivekitEgress;
 import livekit.LivekitWebhook;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,13 +21,11 @@ public class LiveKitWebhookController {
     private static final Logger log = LoggerFactory.getLogger(LiveKitWebhookController.class);
 
     private final LiveKitService livekit;
-    private final RecordingRepository recordings;
-    private final RoomRepository rooms;
+    private final RecordingSync recordings;
 
-    public LiveKitWebhookController(LiveKitService livekit, RecordingRepository recordings, RoomRepository rooms) {
+    public LiveKitWebhookController(LiveKitService livekit, RecordingSync recordings) {
         this.livekit = livekit;
         this.recordings = recordings;
-        this.rooms = rooms;
     }
 
     @PostMapping(value = "/webhook", consumes = {"application/webhook+json", "application/json"})
@@ -44,23 +39,9 @@ public class LiveKitWebhookController {
         }
 
         switch (event.getEvent()) {
-            case "egress_ended" -> onEgressEnded(event.getEgressInfo());
+            case "egress_ended" -> recordings.apply(event.getEgressInfo());
             default -> log.debug("LiveKit event {}", event.getEvent());
         }
         return ResponseEntity.ok().build();
-    }
-
-    private void onEgressEnded(LivekitEgress.EgressInfo info) {
-        recordings.findByEgressId(info.getEgressId()).ifPresent(rec -> {
-            if (info.getStatus() == LivekitEgress.EgressStatus.EGRESS_COMPLETE && info.getFileResultsCount() > 0) {
-                var file = info.getFileResults(0);
-                String name = Path.of(file.getFilename()).getFileName().toString();
-                rec.markReady(name, file.getDuration() / 1_000_000_000L); // ns → s
-            } else {
-                rec.markFailed();
-            }
-        });
-        // If recording stopped on its own (room emptied), clear the flag on the room.
-        rooms.findByActiveEgressId(info.getEgressId()).ifPresent(r -> r.setActiveEgressId(null));
     }
 }

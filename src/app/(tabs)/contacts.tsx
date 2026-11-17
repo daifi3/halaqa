@@ -80,7 +80,7 @@ function ChatRow({ c, myId, index }: { c: Conversation; myId?: string; index: nu
   const unread = c.unread > 0;
   return (
     <Animated.View entering={FadeInDown.delay(40 + Math.min(index, 8) * 40)}>
-      <PressableScale scaleTo={0.98} onPress={() => router.push(`/chat/${c.id}`)} style={styles.row}>
+      <PressableScale scaleTo={0.98} onPress={() => router.push({ pathname: '/chat/[id]', params: { id: c.id } })} style={styles.row}>
         <Avatar name={c.other.name} size={48} uri={c.other.avatarUrl} ring={unread ? accent : undefined} />
         <View style={{ flex: 1, gap: 2 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>

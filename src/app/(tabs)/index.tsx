@@ -5,6 +5,7 @@ import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BellButton } from '@/components/inbox';
 import { RoomCard } from '@/components/room-card';
+import { MenuButton } from '@/components/side-menu';
 import { Avatar, EmptyState, Skeleton } from '@/components/ui/misc';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
@@ -58,7 +59,8 @@ export default function Home() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
       >
         <Animated.View entering={FadeInUp.duration(400)} style={styles.header}>
-          <View style={{ flex: 1 }}>
+          <MenuButton />
+          <View style={{ flex: 1, marginLeft: 12 }}>
             <Text color={colors.muted}>{greeting()},</Text>
             <Text variant="title">{user.name.split(' ')[0]}</Text>
           </View>

@@ -33,9 +33,21 @@ services:
         sync: false
       - key: LIVEKIT_API_SECRET
         sync: false
-      # LiveKit Cloud can only record to cloud storage, which isn't set up.
+      # LiveKit Cloud records to S3-compatible storage (e.g. a Cloudflare R2 bucket with public access).
       - key: RECORDING_ENABLED
-        value: "false"
+        value: "true"
+      - key: RECORDINGS_S3_BUCKET
+        sync: false
+      - key: RECORDINGS_S3_REGION # "auto" for R2
+        value: auto
+      - key: RECORDINGS_S3_ENDPOINT # https://<account-id>.r2.cloudflarestorage.com (empty for AWS S3)
+        sync: false
+      - key: RECORDINGS_S3_ACCESS_KEY
+        sync: false
+      - key: RECORDINGS_S3_SECRET
+        sync: false
+      - key: RECORDINGS_PUBLIC_URL # e.g. https://pub-xxxx.r2.dev
+        sync: false
 
   # The web app (Vite + React). VITE_* values are baked in at build time.
   - type: web

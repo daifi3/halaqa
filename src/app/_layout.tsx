@@ -15,7 +15,9 @@ import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { BiometricGate } from '@/components/biometric-gate';
+import { ChatBubbles } from '@/components/chat/chat-bubbles';
 import { InboxBanner } from '@/components/inbox';
+import { SideMenu } from '@/components/side-menu';
 import { useSecurityPrefs } from '@/store/security-prefs';
 import { useSession } from '@/store/session';
 import { colors, isDark } from '@/theme';
@@ -74,6 +76,7 @@ export default function RootLayout() {
             <Stack.Screen name="join" options={{ presentation: 'formSheet', sheetAllowedDetents: [0.62], sheetCornerRadius: 28, sheetGrabberVisible: true }} />
             <Stack.Screen name="room/[id]" />
             <Stack.Screen name="room/students/[id]" />
+            <Stack.Screen name="students/index" />
             <Stack.Screen name="scan" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom', contentStyle: { backgroundColor: '#000' } }} />
             <Stack.Screen name="course/new" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
             <Stack.Screen name="course/join" options={{ presentation: 'formSheet', sheetAllowedDetents: [0.62], sheetCornerRadius: 28, sheetGrabberVisible: true }} />
@@ -99,7 +102,10 @@ export default function RootLayout() {
             <Stack.Screen name="call/[id]" options={{ presentation: 'fullScreenModal', animation: 'fade', gestureEnabled: false, contentStyle: { backgroundColor: colors.stage } }} />
           </Stack.Protected>
         </Stack>
+        <SideMenu />
         <InboxBanner />
+        {/* Chats floating over the app (turned on in a chat's settings). */}
+        <ChatBubbles />
         <BiometricGate />
       </SafeAreaProvider>
     </GestureHandlerRootView>

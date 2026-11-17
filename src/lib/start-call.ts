@@ -19,7 +19,7 @@ export async function openChatWith(person: Person) {
   try {
     const c = await api.openChat(person.id);
     useChats.getState().upsertConversation(c);
-    router.push(`/chat/${c.id}`);
+    router.push({ pathname: '/chat/[id]', params: { id: c.id } });
   } catch (e) {
     Alert.alert('Couldn’t open the chat', e instanceof Error ? e.message : 'Please try again.');
   }

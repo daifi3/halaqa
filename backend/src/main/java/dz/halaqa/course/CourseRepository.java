@@ -10,6 +10,8 @@ public interface CourseRepository extends JpaRepository<Course, String> {
 
     boolean existsByJoinCode(String joinCode);
 
+    List<Course> findByTeacherIdOrderByCreatedAtDesc(String teacherId);
+
     @Query("""
         select distinct c from Course c
         left join c.invitedEmails e

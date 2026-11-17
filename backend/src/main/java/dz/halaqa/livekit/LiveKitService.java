@@ -23,13 +23,16 @@ import org.springframework.web.server.ResponseStatusException;
  */
 @Service
 public class LiveKitService {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(LiveKitService.class);
 
     private final HalaqaProperties.LiveKit cfg;
+    private final HalaqaProperties.Recordings recordingStorage;
     private final EgressServiceClient egress;
     private final RoomServiceClient roomService;
 
     public LiveKitService(HalaqaProperties props) {
         this.cfg = props.livekit();
+        this.recordingStorage = props.recordings();
         this.egress = EgressServiceClient.createClient(cfg.apiUrl(), cfg.apiKey(), cfg.apiSecret());
         this.roomService = RoomServiceClient.createClient(cfg.apiUrl(), cfg.apiKey(), cfg.apiSecret());
     }
@@ -201,24 +204,65 @@ public class LiveKitService {
         }
     }
 
-    /** Starts a room-composite recording (grid layout, audio + video) and returns the egress id. */
+    /** LiveKit Cloud (as opposed to the self-hosted docker stack) has no disk Egress can write to. */
+    private boolean onCloud() {
+        return cfg.apiUrl() != null && cfg.apiUrl().contains(".livekit.cloud");
+    }
+
+    /**
+     * Starts a room-composite recording (grid layout, audio + video) and returns the egress id.
+     * With S3 storage set, the MP4 is uploaded to the bucket under recordings/; otherwise Egress
+     * writes it into the shared ./recordings folder (self-hosted only).
+     */
     public String startRecording(Room room) {
         if (!cfg.recordingEnabled()) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Recording isn't available on this server yet");
         }
-        var output = LivekitEgress.EncodedFileOutput.newBuilder()
+        var file = LivekitEgress.EncodedFileOutput.newBuilder()
                 .setFileType(LivekitEgress.EncodedFileType.MP4)
-                .setFilepath(cfg.egressOutputDir() + "/" + room.getId() + "-{time}.mp4")
-                .build();
+                .setDisableManifest(true);
+        if (recordingStorage != null && recordingStorage.s3()) {
+            var s3 = LivekitEgress.S3Upload.newBuilder()
+                    .setBucket(recordingStorage.s3Bucket())
+                    .setAccessKey(nullToEmpty(recordingStorage.s3AccessKey()))
+                    .setSecret(nullToEmpty(recordingStorage.s3Secret()))
+                    .setRegion(recordingStorage.s3Region() == null || recordingStorage.s3Region().isBlank() ? "auto" : recordingStorage.s3Region());
+            if (recordingStorage.s3Endpoint() != null && !recordingStorage.s3Endpoint().isBlank()) {
+                // Non-AWS storage (R2, MinIO…): bucket in the path, not the hostname.
+                s3.setEndpoint(recordingStorage.s3Endpoint()).setForcePathStyle(true);
+            }
+            file.setFilepath("recordings/" + room.getId() + "-{time}.mp4").setS3(s3);
+        } else if (onCloud()) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Recording needs cloud storage on LiveKit Cloud: set RECORDINGS_S3_BUCKET and its keys on the server");
+        } else {
+            file.setFilepath(cfg.egressOutputDir() + "/" + room.getId() + "-{time}.mp4");
+        }
         try {
-            var res = egress.startRoomCompositeEgress(room.livekitName(), output, "grid").execute();
+            var res = egress.startRoomCompositeEgress(room.livekitName(), file.build(), "grid").execute();
             if (!res.isSuccessful() || res.body() == null) {
+                String why = res.errorBody() != null ? res.errorBody().string() : "";
+                log.warn("Egress refused to start ({}): {}", res.code(), why);
                 throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Recording service refused to start (" + res.code() + ")");
             }
             return res.body().getEgressId();
         } catch (IOException e) {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Recording service unreachable");
         }
+    }
+
+    /** The current state of a recording, straight from LiveKit (null when it can't be reached or doesn't know it). */
+    public LivekitEgress.EgressInfo egressInfo(String egressId) {
+        try {
+            var res = egress.listEgress(null, egressId).execute();
+            return res.isSuccessful() && res.body() != null && !res.body().isEmpty() ? res.body().getFirst() : null;
+        } catch (IOException | RuntimeException e) {
+            return null;
+        }
+    }
+
+    private static String nullToEmpty(String s) {
+        return s == null ? "" : s;
     }
 
     public void stopRecording(String egressId) {

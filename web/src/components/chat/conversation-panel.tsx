@@ -10,6 +10,7 @@ import {
 import { viewerKind, viewerPath } from '@/lib/links';
 import { useStartCall } from '@/lib/use-calls';
 import { useConversation, useIsTyping } from '@/lib/use-conversation';
+import type { Person } from '@/lib/types';
 import type { ChatItem } from '@/store/chats';
 import { colors, isDark, radius } from '@/theme';
 
@@ -48,16 +49,36 @@ function Attachment({ m, mine }: { m: ChatItem; mine: boolean }) {
   );
 }
 
-function TypingBubble() {
+/** "Karim is typing": their photo beside a bubble of dots, like a message on its way. */
+function TypingBubble({ other, accent }: { other: Person; accent: string }) {
   return (
-    <div className="h a-fade" style={{ gap: 4, padding: '12px 14px', borderRadius: 20, backgroundColor: colors.surface, alignSelf: 'flex-start', marginTop: 8 }} aria-label="typing">
-      {[0, 1, 2].map((i) => <span key={i} className="typing-dot" style={{ animationDelay: `${i * 160}ms`, backgroundColor: colors.muted }} />)}
+    <div className="h chat-typing" role="status" aria-label={`${other.name} is typing`} style={{ gap: 8, alignItems: 'flex-end', marginTop: 10 }}>
+      <Avatar name={other.name} size={28} uri={other.avatarUrl} />
+      <span className="h" style={{
+        gap: 5, height: 36, padding: '0 15px', borderRadius: 18, borderBottomLeftRadius: 6, backgroundColor: colors.surface,
+        border: `1px solid ${accent}33`,
+      }}>
+        {[0, 1, 2].map((i) => <span key={i} className="typing-dot" style={{ animationDelay: `${i * 150}ms`, backgroundColor: accent }} />)}
+      </span>
     </div>
   );
 }
 
-function Bubble({ m, first, last, mine, accent, seen, myId, onReact, onRetry }: {
+/** The header's "typing" with three small bouncing dots. */
+function TypingLabel({ accent }: { accent: string }) {
+  return (
+    <span className="h a-fade" style={{ gap: 5 }}>
+      <Text variant="small" color={accent} style={{ fontWeight: 600 }}>typing</Text>
+      <span className="h" style={{ gap: 2, paddingTop: 3 }}>
+        {[0, 1, 2].map((i) => <span key={i} className="typing-dot small" style={{ animationDelay: `${i * 150}ms`, backgroundColor: accent }} />)}
+      </span>
+    </span>
+  );
+}
+
+function Bubble({ m, first, last, mine, accent, seen, myId, other, animate, onReact, onRetry }: {
   m: ChatItem; first: boolean; last: boolean; mine: boolean; accent: string; seen: boolean; myId: string;
+  other?: Person; animate: boolean;
   onReact: (emoji: string) => void; onRetry: () => void;
 }) {
   const [picker, setPicker] = useState(false);
@@ -68,7 +89,11 @@ function Bubble({ m, first, last, mine, accent, seen, myId, onReact, onRetry }: 
   const r = 18;
 
   return (
-    <div className="v chat-msg" style={{ alignItems: mine ? 'flex-end' : 'flex-start', marginTop: first ? 10 : 2, position: 'relative' }}>
+    <div className={`v chat-msg${animate ? (mine ? ' chat-in-mine' : ' chat-in') : ''}`}
+      style={{ alignItems: mine ? 'flex-end' : 'flex-start', marginTop: first ? 10 : 2, position: 'relative', paddingLeft: mine ? 0 : 36 }}>
+      {!mine && last && other && (
+        <span style={{ position: 'absolute', left: 0, bottom: 21 }}><Avatar name={other.name} size={28} uri={other.avatarUrl} /></span>
+      )}
       <div className="h" style={{ gap: 6, flexDirection: mine ? 'row-reverse' : 'row', maxWidth: '100%' }}>
         <div
           onContextMenu={(e) => { if (!m.status) { e.preventDefault(); setPicker(true); } }}
@@ -76,6 +101,8 @@ function Bubble({ m, first, last, mine, accent, seen, myId, onReact, onRetry }: 
           style={{
             maxWidth: 260, padding: photoOnly ? 4 : '8px 13px', wordBreak: 'break-word',
             backgroundColor: mine ? accent : colors.surface, opacity: m.status === 'sending' ? 0.7 : 1,
+            boxShadow: mine ? `0 3px 10px ${accent}40` : '0 1px 3px rgba(0,0,0,0.06)',
+            border: mine ? undefined : `1px solid ${colors.line}`,
             borderRadius: r,
             [mine ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: last ? 6 : r,
             [mine ? 'borderTopRightRadius' : 'borderTopLeftRadius']: first ? r : 6,
@@ -108,7 +135,7 @@ function Bubble({ m, first, last, mine, accent, seen, myId, onReact, onRetry }: 
       )}
 
       {counts.size > 0 && (
-        <div className="h" style={{ gap: 4, marginTop: -6, [mine ? 'marginRight' : 'marginLeft']: 6, position: 'relative' }}>
+        <div className="h" style={{ gap: 4, marginTop: -6, [mine ? 'marginRight' : 'marginLeft']: 6, position: 'relative', zIndex: 1 }}>
           {[...counts].map(([emoji, n]) => (
             <button key={emoji} type="button" onClick={() => onReact(emoji)} aria-label={`${emoji} ${n}`} style={{
               fontSize: 12, padding: '1px 7px', borderRadius: 999, cursor: 'pointer', backgroundColor: colors.surface,
@@ -190,8 +217,12 @@ export function ConversationPanel({ id, onBack, onClose }: { id: string; onBack:
   const [notice, setNotice] = useState<string | null>(null);
   const list = useRef<HTMLDivElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const photoInput = useRef<HTMLInputElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const stickToBottom = useRef(true);
+  const [awayFromBottom, setAwayFromBottom] = useState(false);
+  const [newWhileAway, setNewWhileAway] = useState(0);
+  const lastSeenCount = useRef(0);
   const restoreFrom = useRef<number | null>(null);
   const accent = chatAccent(chat.conversation?.theme);
   const other = chat.conversation?.other;
@@ -216,9 +247,30 @@ export function ConversationPanel({ id, onBack, onClose }: { id: string; onBack:
 
   useEffect(() => { input.current?.focus(); }, [id]);
 
+  // Count messages from them that land while the user is reading further up.
+  useEffect(() => {
+    const count = chat.messages.length;
+    const added = chat.messages.slice(lastSeenCount.current).filter((m) => m.senderId !== chat.myId).length;
+    lastSeenCount.current = count;
+    if (added && !stickToBottom.current) {
+      const t = setTimeout(() => setNewWhileAway((n) => n + added), 0);
+      return () => clearTimeout(t);
+    }
+  }, [chat.messages, chat.myId]);
+
+  function jumpToLatest() {
+    const el = list.current;
+    if (!el) return;
+    stickToBottom.current = true;
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    setNewWhileAway(0);
+  }
+
   function onScroll() {
     const el = list.current!;
     stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+    setAwayFromBottom(el.scrollHeight - el.scrollTop - el.clientHeight > 240);
+    if (stickToBottom.current && newWhileAway) setNewWhileAway(0);
     if (el.scrollTop < 80 && chat.hasMore && !chat.loadingOlder) {
       restoreFrom.current = el.scrollHeight - el.scrollTop;
       void chat.loadOlder();
@@ -255,12 +307,12 @@ export function ConversationPanel({ id, onBack, onClose }: { id: string; onBack:
       onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDragging(true); } }}
       onDragLeave={(e) => { if (e.currentTarget === e.target) setDragging(false); }}
       onDrop={onDrop}>
-      <div className="h" style={{ gap: 8, padding: '10px 10px 10px 6px', borderBottom: `1px solid ${colors.line}`, backgroundColor: colors.surface }}>
+      <div className="h" style={{ gap: 8, padding: '10px 10px 10px 6px', borderBottom: `1px solid ${colors.line}`, backgroundColor: colors.surface, boxShadow: `inset 0 3px 0 ${accent}` }}>
         <IconButton icon="chevron-back" size={36} bg="transparent" label="All chats" onPress={onBack} />
-        {other && <Avatar name={other.name} size={36} uri={other.avatarUrl} />}
-        <div className="v flex1">
+        {other && <Avatar name={other.name} size={38} uri={other.avatarUrl} ring={accent} />}
+        <div className="v flex1" style={{ gap: 1 }}>
           <Text variant="bodyStrong" lines={1}>{other?.name ?? ' '}</Text>
-          <Text variant="small" color={typing ? accent : colors.muted}>{typing ? 'typing…' : 'Halaqa chat'}</Text>
+          {typing ? <TypingLabel accent={accent} /> : <Text variant="small" color={colors.muted}>Halaqa chat</Text>}
         </div>
         <IconButton icon="color-palette-outline" size={36} color={accent} bg="transparent" label="Chat theme" onPress={() => setThemes(true)} />
         {other && <IconButton icon="call" size={36} color="#fff" bg={colors.success} label={`Call ${other.name}`} onPress={() => startCall(other)} />}
@@ -295,19 +347,30 @@ export function ConversationPanel({ id, onBack, onClose }: { id: string; onBack:
               return (
                 <Fragment key={m.clientId || m.id}>
                   {newDay && (
-                    <span style={{ alignSelf: 'center', margin: '12px 0 4px', padding: '3px 12px', borderRadius: 999, backgroundColor: colors.surface }}>
-                      <Text variant="small" color={colors.muted} style={{ fontWeight: 600 }}>{dayLabel(m.createdAt)}</Text>
-                    </span>
+                    <div className="h" role="separator" style={{ gap: 10, margin: '14px 16px 4px' }}>
+                      <span className="flex1" style={{ height: 1, backgroundColor: colors.line }} />
+                      <Text variant="small" color={colors.muted} style={{ fontWeight: 600, fontSize: 12, letterSpacing: 0.3 }}>{dayLabel(m.createdAt)}</Text>
+                      <span className="flex1" style={{ height: 1, backgroundColor: colors.line }} />
+                    </div>
                   )}
                   <Bubble m={m} first={!joinsPrev} last={!joinsNext} mine={m.senderId === chat.myId} accent={accent}
+                    other={other} animate={i >= chat.messages.length - 2}
                     seen={m.id === seenId} myId={chat.myId} onReact={(e) => void chat.react(m, e)} onRetry={() => chat.retry(m.clientId)} />
                 </Fragment>
               );
             })}
-            {typing && <TypingBubble />}
+            {typing && other && <TypingBubble other={other} accent={accent} />}
           </>
         )}
       </div>
+
+      {awayFromBottom && (
+        <button type="button" className="chat-jump a-zoom" onClick={jumpToLatest} aria-label="Jump to the latest message"
+          style={{ backgroundColor: newWhileAway ? accent : colors.surface, color: newWhileAway ? '#fff' : colors.ink }}>
+          {newWhileAway > 0 && <span style={{ fontSize: 13, fontWeight: 700 }}>{newWhileAway} new</span>}
+          <Icon name="arrow-down" size={18} color={newWhileAway ? '#fff' : colors.ink} />
+        </button>
+      )}
 
       {notice && (
         <button type="button" onClick={() => setNotice(null)} className="h" style={{ gap: 6, padding: '6px 12px', border: 0, backgroundColor: colors.dangerSoft, cursor: 'pointer' }}>
@@ -318,7 +381,8 @@ export function ConversationPanel({ id, onBack, onClose }: { id: string; onBack:
       )}
 
       <div className="h" style={{ gap: 8, padding: 10, alignItems: 'flex-end', borderTop: `1px solid ${colors.line}`, backgroundColor: colors.surface }}>
-        <IconButton icon="attach" size={40} color={accent} bg={accent + '1A'} label="Send a file" onPress={() => fileInput.current?.click()} />
+        <div className="h flex1 chat-composer" style={{ alignItems: 'flex-end', borderColor: draft ? accent + '66' : colors.line }}>
+        <IconButton icon="add-circle" size={38} color={accent} bg="transparent" label="Send a file" onPress={() => fileInput.current?.click()} />
         <input ref={fileInput} type="file" multiple hidden onChange={(e) => { if (e.target.files) sendFiles(e.target.files); e.target.value = ''; }} />
         <textarea
           ref={input}
@@ -331,16 +395,24 @@ export function ConversationPanel({ id, onBack, onClose }: { id: string; onBack:
           maxLength={4000}
           rows={1}
           style={{
-            flex: 1, minHeight: 40, maxHeight: 120, borderRadius: 20, backgroundColor: colors.surfaceAlt, color: colors.ink,
-            padding: '10px 14px', fontSize: 15, border: 0, outline: 0, resize: 'none', fieldSizing: 'content',
+            flex: 1, minHeight: 38, maxHeight: 120, background: 'transparent', color: colors.ink,
+            padding: '9px 4px', fontSize: 15, border: 0, outline: 0, resize: 'none', fieldSizing: 'content',
           } as React.CSSProperties}
         />
-        <Pressable scaleTo={0.88} disabled={!draft.trim()} onClick={send} aria-label="Send message" style={{
-          width: 40, height: 40, borderRadius: 20, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          backgroundColor: draft.trim() ? accent : colors.surfaceAlt,
-        }}>
-          <Icon name="arrow-up" size={20} color={draft.trim() ? '#fff' : colors.muted} />
-        </Pressable>
+        </div>
+        {draft.trim() ? (
+          <Pressable key="send" className="a-zoom" scaleTo={0.86} onClick={send} aria-label="Send message" style={{
+            width: 42, height: 42, borderRadius: 21, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            backgroundColor: accent, boxShadow: `0 4px 12px ${accent}55`,
+          }}>
+            <Icon name="send" size={17} color="#fff" style={{ marginLeft: 2 }} />
+          </Pressable>
+        ) : (
+          <span key="photo" className="a-zoom">
+            <IconButton icon="image-outline" size={42} color={accent} bg={accent + '1A'} label="Send a photo" onPress={() => photoInput.current?.click()} />
+          </span>
+        )}
+        <input ref={photoInput} type="file" accept="image/*" multiple hidden onChange={(e) => { if (e.target.files) sendFiles(e.target.files); e.target.value = ''; }} />
       </div>
 
       {dragging && (

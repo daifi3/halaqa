@@ -16,6 +16,8 @@ public interface RoomRepository extends JpaRepository<Room, String> {
 
     long countByCourseId(String courseId);
 
+    List<Room> findByTeacherId(String teacherId);
+
     @Query("""
         select distinct r from Room r
         left join r.invitedEmails e

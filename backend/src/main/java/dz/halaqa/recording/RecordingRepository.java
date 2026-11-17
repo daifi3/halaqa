@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.Query;
 public interface RecordingRepository extends JpaRepository<Recording, String> {
     Optional<Recording> findByEgressId(String egressId);
 
+    List<Recording> findByStatus(Recording.Status status);
+
     @Query("""
         select distinct rec from Recording rec
         join rec.room r

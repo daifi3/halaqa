@@ -5,7 +5,7 @@ import { emitDemoChat } from './direct-chat';
 import { attemptDeadline, examWindow, formatGrade, scoreAttempt } from './exam';
 import type {
   AuthSession, Call, Contact, ContactInput, Conversation, Course, DirectMessage, Person, Exam, ExamAnswer, ExamAttempt, Homework, HomeworkSubmission, JoinCredentials, NewCourseInput, NewExamInput,
-  NewRoomInput, NewVaultDocumentInput, PickedFile, Recording, Role, Room, RoomStudent, RsvpStatus, StoredChatMessage,
+  NewRoomInput, NewVaultDocumentInput, PickedFile, Recording, Role, Room, RoomStudent, RsvpStatus, StoredChatMessage, Student,
   StoredExam, SubmitHomeworkInput, User, VaultDocument, AppNotification, Inbox, NotificationKind,
 } from './types';
 import { useDemoNotifications } from '@/store/demo-notifications';
@@ -33,6 +33,8 @@ export interface Api {
   respondToRoom(id: string, response: Exclude<RsvpStatus, 'pending'>): Promise<Room>;
   /** Teacher only — everyone who can attend this session, with their RSVP. */
   listRoomStudents(id: string): Promise<RoomStudent[]>;
+  /** Teacher only: every student across their courses and sessions. */
+  listMyStudents(): Promise<Student[]>;
   startRecording(id: string): Promise<Room>;
   stopRecording(id: string): Promise<Room>;
   /** Teacher only — lets one student share their screen, or stops them. */
@@ -308,6 +310,7 @@ class HttpApi implements Api {
     return this.request<Room>(`/rooms/${id}/rsvp`, { method: 'POST', body: JSON.stringify({ response }) });
   }
   listRoomStudents(id: string) { return this.request<RoomStudent[]>(`/rooms/${id}/students`); }
+  listMyStudents() { return this.request<Student[]>('/students'); }
   startRecording(id: string) { return this.request<Room>(`/rooms/${id}/recording/start`, { method: 'POST' }); }
   stopRecording(id: string) { return this.request<Room>(`/rooms/${id}/recording/stop`, { method: 'POST' }); }
   async setScreenShareGrant(roomId: string, userId: string, allow: boolean) {
@@ -706,6 +709,42 @@ class MockApi implements Api {
         status: this.rsvps[id]?.[email] ?? 'pending',
       };
     });
+  }
+
+  async listMyStudents() {
+    await wait(300);
+    const me = this.me();
+    if (me.role !== 'teacher') throw new Error('Only teachers have a student list');
+    const emailOf = (userId: string) => this.accounts.find((a) => a.id === userId)?.email?.toLowerCase();
+    const rows = new Map<string, { courses: Set<string>; rooms: Set<string> }>();
+    const row = (email: string) => {
+      const key = email.toLowerCase();
+      if (!rows.has(key)) rows.set(key, { courses: new Set(), rooms: new Set() });
+      return rows.get(key)!;
+    };
+    const courseEmails = (c: Course) => [
+      ...c.invitedEmails,
+      ...[...(this.courseMembers[c.id] ?? [])].map(emailOf).filter((e): e is string => !!e),
+    ];
+    const myCourses = this.courses.filter((c) => c.teacher.id === me.id);
+    myCourses.forEach((c) => courseEmails(c).forEach((e) => row(e).courses.add(c.id)));
+    this.rooms.filter((r) => r.teacher.id === me.id).forEach((r) => {
+      const course = r.courseId ? myCourses.find((c) => c.id === r.courseId) : undefined;
+      [
+        ...r.invitedEmails,
+        ...[...(this.roomMembers[r.id] ?? [])].map(emailOf).filter((e): e is string => !!e),
+        ...(course ? courseEmails(course) : []),
+      ].forEach((e) => row(e).rooms.add(r.id));
+    });
+    rows.delete(me.email.toLowerCase());
+    return [...rows].map(([email, { courses, rooms }]): Student => {
+      const account = this.accounts.find((a) => a.email === email);
+      return {
+        email, name: account?.name ?? null, userId: account?.id ?? null, avatarUrl: account?.avatarUrl ?? null,
+        courses: myCourses.filter((c) => courses.has(c.id)).map((c) => ({ id: c.id, title: c.title })),
+        sessionCount: rooms.size,
+      };
+    }).sort((a, b) => Number(!a.name) - Number(!b.name) || (a.name ?? a.email).localeCompare(b.name ?? b.email));
   }
 
   async startRecording(id: string) { await wait(400); return this.patch(id, { isRecording: true }); }
