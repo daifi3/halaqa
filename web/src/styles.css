@@ -481,3 +481,18 @@ a { color: inherit; text-decoration: none; }
 @media (min-width: 960px) {
   .inbox-toasts { top: auto; left: auto; right: 24px; bottom: 24px; width: 380px; }
 }
+
+/* "Get the app" badges on the sign-in screens. */
+.store-badge {
+  display: inline-flex; align-items: center; gap: 10px; padding: 10px 16px 10px 14px;
+  border-radius: 14px; background: #16171C; color: #fff; text-decoration: none;
+  border: 1px solid rgba(255,255,255,0.08); transition: transform .15s ease, box-shadow .15s ease;
+}
+a.store-badge:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(27,26,46,0.22); }
+.store-badge-sub { font-size: 11px; line-height: 14px; opacity: .7; font-weight: 500; }
+.store-badge-title { font-size: 16px; line-height: 20px; font-weight: 700; letter-spacing: -0.2px; }
+.store-badge.disabled { opacity: .55; cursor: not-allowed; position: relative; }
+.store-badge-soon {
+  font-size: 10px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase;
+  padding: 3px 8px; border-radius: 999px; background: rgba(255,255,255,0.14);
+}

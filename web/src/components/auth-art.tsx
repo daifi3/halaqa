@@ -35,6 +35,36 @@ const FEATURES: { icon: IconName; title: string; body: string }[] = [
   { icon: 'play-circle-outline', title: 'Recorded lessons', body: 'Replay any class whenever you need it.' },
 ];
 
+/** Where the Android build is served from (web/public/downloads). */
+const APK_URL = '/downloads/halaqa.apk';
+
+/** "Get the app": the Android APK as a direct download; iOS isn't out yet. */
+function AppDownloads() {
+  return (
+    <div className="v a-down" style={{ ...delay(480), gap: 12, maxWidth: 440 }}>
+      <Text variant="label" color={colors.muted}>Get the mobile app</Text>
+      <div className="h" style={{ gap: 10, flexWrap: 'wrap' }}>
+        <a href={APK_URL} download="halaqa.apk" className="store-badge press" aria-label="Download the Android app (APK)">
+          <Icon name="logo-android" size={26} color="#3DDC84" />
+          <span className="v" style={{ gap: 0 }}>
+            <span className="store-badge-sub">Download for</span>
+            <span className="store-badge-title">Android</span>
+          </span>
+          <Icon name="download-outline" size={18} color="rgba(255,255,255,0.6)" />
+        </a>
+        <span className="store-badge disabled" aria-disabled="true" title="The iOS app is coming soon">
+          <Icon name="logo-apple" size={26} color="#fff" />
+          <span className="v" style={{ gap: 0 }}>
+            <span className="store-badge-sub">Coming soon on</span>
+            <span className="store-badge-title">iOS</span>
+          </span>
+          <span className="store-badge-soon">Soon</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
 /** Desktop only: the left half of the sign-in screens. */
 export function AuthArt() {
   return (
@@ -59,6 +89,7 @@ export function AuthArt() {
           </div>
         ))}
       </div>
+      <AppDownloads />
     </aside>
   );
 }

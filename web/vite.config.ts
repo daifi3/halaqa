@@ -35,7 +35,8 @@ export default defineConfig({
         // The classroom chunk (LiveKit + MathJax) is ~2.3 MB, over Workbox's 2 MB default.
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/\.well-known\//],
+        // The Android APK is a plain file download, never the app shell.
+        navigateFallbackDenylist: [/^\/\.well-known\//, /^\/downloads\//],
       },
     }),
   ],
