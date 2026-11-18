@@ -299,6 +299,7 @@ a { color: inherit; text-decoration: none; }
   .auth { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-height: 100vh; }
   .auth-art { display: flex; }
   .auth-hero-inline { display: none !important; }
+  .app-prompt-card, .app-prompt-bubble { display: none !important; }
   .content.auth-form { max-width: 560px; margin: 0 auto; justify-content: center !important; gap: 32px !important; }
   .content.auth-form > * { margin-top: 0 !important; }
 
@@ -483,16 +484,81 @@ a { color: inherit; text-decoration: none; }
 }
 
 /* "Get the app" badges on the sign-in screens. */
+.app-downloads { gap: 12px; max-width: 440px; }
+.store-badges { display: flex; flex-wrap: wrap; gap: 10px; }
 .store-badge {
-  display: inline-flex; align-items: center; gap: 10px; padding: 10px 16px 10px 14px;
+  display: inline-flex; align-items: center; gap: 10px; padding: 10px 16px 10px 14px; min-height: 52px;
   border-radius: 14px; background: #16171C; color: #fff; text-decoration: none;
   border: 1px solid rgba(255,255,255,0.08); transition: transform .15s ease, box-shadow .15s ease;
+  -webkit-tap-highlight-color: transparent;
 }
+.store-badge-text { gap: 0; min-width: 0; }
 a.store-badge:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(27,26,46,0.22); }
-.store-badge-sub { font-size: 11px; line-height: 14px; opacity: .7; font-weight: 500; }
+.store-badge-sub { font-size: 11px; line-height: 14px; opacity: .7; font-weight: 500; white-space: nowrap; }
 .store-badge-title { font-size: 16px; line-height: 20px; font-weight: 700; letter-spacing: -0.2px; }
-.store-badge.disabled { opacity: .55; cursor: not-allowed; position: relative; }
+.store-badge.disabled { opacity: .55; cursor: not-allowed; }
 .store-badge-soon {
   font-size: 10px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase;
   padding: 3px 8px; border-radius: 999px; background: rgba(255,255,255,0.14);
+}
+
+/*
+ * Phones and tablets (the art panel is hidden): a floating "Get the app" card that drops in from the top,
+ * counts down 10s, then shrinks into a bubble in the top-right corner. Tapping the bubble opens it again.
+ */
+.app-prompt-card {
+  position: fixed; z-index: 55; top: max(env(safe-area-inset-top), 12px); left: 12px; right: 12px;
+  margin: 0 auto; max-width: 440px; padding: 14px; border-radius: 20px; overflow: hidden;
+  background: var(--surface); border: 1px solid var(--line);
+  box-shadow: 0 18px 44px rgba(27,26,46,0.22);
+  display: flex; flex-direction: column; gap: 12px;
+  transform-origin: calc(100% - 26px) 26px;
+  animation: appPromptIn 420ms cubic-bezier(.2,.9,.3,1.2) both;
+}
+.app-prompt-card.leaving { animation: appPromptOut 320ms cubic-bezier(.5,0,.75,0) both; pointer-events: none; }
+.app-prompt-head { display: flex; align-items: center; gap: 12px; }
+.app-prompt-icon {
+  width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0; background: #16171C;
+  display: flex; align-items: center; justify-content: center;
+}
+.app-prompt-close {
+  width: 32px; height: 32px; border-radius: 16px; border: 0; flex-shrink: 0; cursor: pointer;
+  background: var(--surface-alt); color: var(--ink); display: flex; align-items: center; justify-content: center;
+}
+.app-prompt-card .store-badge { flex: 1 1 140px; justify-content: center; padding: 10px 12px; }
+.app-prompt-progress {
+  position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: #3DDC84;
+  transform-origin: left; animation: appPromptCountdown 10s linear both;
+}
+/* Hold the countdown while the user is reading or touching the card. */
+.app-prompt-card:hover .app-prompt-progress,
+.app-prompt-card:focus-within .app-prompt-progress { animation-play-state: paused; }
+
+.app-prompt-bubble {
+  position: fixed; z-index: 55; top: max(env(safe-area-inset-top), 12px); right: 16px;
+  width: 52px; height: 52px; border-radius: 26px; border: 0; cursor: pointer; padding: 0;
+  background: #16171C; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 10px 26px rgba(27,26,46,0.28);
+  animation: appBubbleIn 380ms cubic-bezier(.2,.9,.3,1.4) both;
+  -webkit-tap-highlight-color: transparent;
+}
+.app-prompt-bubble:active { transform: scale(0.92); }
+/* A soft ring that pulses a few times so the bubble gets noticed, then settles. */
+.app-prompt-bubble::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; border: 2px solid #3DDC84;
+  animation: callPulse 1800ms ease-out 3;
+}
+.app-prompt-bubble-dot {
+  position: absolute; top: 2px; right: 2px; width: 12px; height: 12px; border-radius: 6px;
+  background: #3DDC84; border: 2px solid var(--bg);
+}
+
+@keyframes appPromptIn { from { opacity: 0; transform: translateY(-24px) scale(0.96); } to { opacity: 1; transform: none; } }
+@keyframes appPromptOut { to { opacity: 0; transform: scale(0.12); } }
+@keyframes appBubbleIn { from { opacity: 0; transform: scale(0.3); } to { opacity: 1; transform: none; } }
+@keyframes appPromptCountdown { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .app-prompt-card, .app-prompt-card.leaving, .app-prompt-bubble, .app-prompt-bubble::after { animation-duration: 1ms; }
+}
 }

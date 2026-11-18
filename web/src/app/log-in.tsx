@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router';
+import { AppDownloadPrompt } from '@/components/app-download-prompt';
 import { AuthArt } from '@/components/auth-art';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,6 +44,7 @@ export default function LogIn() {
   return (
     <form className="page auth" onSubmit={submit}>
       <AuthArt />
+      <AppDownloadPrompt />
       <div className="content narrow auth-form" style={{ flex: 1, padding: 24, gap: 28 }}>
         <IconButton icon="chevron-back" onPress={back} label="Back" />
 

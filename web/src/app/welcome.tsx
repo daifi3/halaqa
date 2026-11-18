@@ -5,6 +5,7 @@ import { Icon } from '@/components/ui/icon';
 import { delay } from '@/components/ui/misc';
 import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
+import { AppDownloadPrompt } from '@/components/app-download-prompt';
 import { AuthArt, FloatingHero } from '@/components/auth-art';
 import type { Role } from '@/lib/types';
 import { colors, radius } from '@/theme';
@@ -53,6 +54,7 @@ export default function Welcome() {
   return (
     <div className="page auth">
       <AuthArt />
+      <AppDownloadPrompt />
       <div className="content narrow auth-form" style={{ flex: 1, padding: '12px 24px', justifyContent: 'space-between', gap: 24 }}>
         <div className="auth-hero-inline"><FloatingHero /></div>
         <div className="v a-up" style={{ ...delay(100), gap: 10 }}>
