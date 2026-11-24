@@ -84,7 +84,7 @@ public class CallController {
     @Transactional
     public CallDto start(@Valid @RequestBody StartCallRequest req, @RequestAttribute(AuthInterceptor.USER_ATTR) User me) {
         if (req.calleeId().equals(me.getId())) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You can't call yourself");
-        User callee = users.findById(req.calleeId())
+        User callee = users.findById(req.calleeId()).filter(u -> !u.isDeleted())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "This person doesn't have a Halaqa account"));
         if (isBusy(callee)) throw new ResponseStatusException(HttpStatus.CONFLICT, callee.getName() + " is on another call");
 

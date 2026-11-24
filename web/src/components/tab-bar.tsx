@@ -1,5 +1,7 @@
 import { Suspense } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router';
+import { ROLES } from '@/lib/roles';
+import type { Role } from '@/lib/types';
 import { useMe } from '@/store/session';
 import { useIncomingCalls } from '@/lib/use-calls';
 import { useChatRealtime } from '@/lib/use-chat-realtime';
@@ -10,7 +12,9 @@ import { Icon, type IconName } from './ui/icon';
 import { Avatar, Spinner } from './ui/misc';
 import { Text } from './ui/text';
 
-export const TABS: { path: string; label: string; on: IconName; off: IconName }[] = [
+type Tab = { path: string; label: string; on: IconName; off: IconName };
+
+export const TABS: Tab[] = [
   { path: '/', label: 'Classes', on: 'grid', off: 'grid-outline' },
   { path: '/courses', label: 'Courses', on: 'library', off: 'library-outline' },
   { path: '/exams', label: 'Exams', on: 'ribbon', off: 'ribbon-outline' },
@@ -18,6 +22,24 @@ export const TABS: { path: string; label: string; on: IconName; off: IconName }[
   { path: '/contacts', label: 'Contacts', on: 'people', off: 'people-outline' },
   { path: '/profile', label: 'Profile', on: 'person-circle', off: 'person-circle-outline' },
 ];
+
+/** Halaqa admins manage accounts; they don't teach or take classes. */
+const ADMIN_TABS: Tab[] = [
+  { path: '/admin/users', label: 'Users', on: 'people', off: 'people-outline' },
+  { path: '/admin/requests', label: 'Demo requests', on: 'mail-unread', off: 'mail-unread-outline' },
+  { path: '/admin/payments', label: 'Payments', on: 'card', off: 'card-outline' },
+  { path: '/profile', label: 'Profile', on: 'person-circle', off: 'person-circle-outline' },
+];
+
+export const tabsFor = (role: Role) => (role === 'admin' ? ADMIN_TABS : TABS);
+
+function adminSectionOf(pathname: string) {
+  if (/^\/admin\/users\b/.test(pathname)) return 0;
+  if (/^\/admin\/requests\b/.test(pathname)) return 1;
+  if (/^\/admin\/payments\b/.test(pathname)) return 2;
+  if (/^\/(profile|notifications|change-password)\b/.test(pathname)) return 3;
+  return -1;
+}
 
 /** Which tab a page belongs to, so the sidebar keeps its place on pages opened from a tab. */
 function sectionOf(pathname: string) {
@@ -32,13 +54,14 @@ function sectionOf(pathname: string) {
 
 function Account() {
   const me = useMe();
-  const tone = me.role === 'teacher' ? colors.teacher : colors.student;
+  const role = ROLES[me.role];
+  const tone = role.tone;
   return (
     <Link to="/profile" className="sidebar-account press">
       <Avatar name={me.name} size={38} ring={tone} uri={me.avatarUrl} />
       <span className="v flex1" style={{ minWidth: 0 }}>
         <Text variant="bodyStrong" lines={1}>{me.name}</Text>
-        <Text variant="small" color={colors.muted}>{me.role === 'teacher' ? 'Teacher' : 'Student'}</Text>
+        <Text variant="small" color={colors.muted}>{role.label}</Text>
       </span>
     </Link>
   );
@@ -50,8 +73,10 @@ function Account() {
  */
 export function TabsLayout() {
   const { pathname } = useLocation();
-  const section = sectionOf(pathname);
-  const onTab = TABS.some((t) => t.path === pathname);
+  const me = useMe();
+  const tabs = tabsFor(me.role);
+  const section = me.role === 'admin' ? adminSectionOf(pathname) : sectionOf(pathname);
+  const onTab = tabs.some((t) => t.path === pathname);
   const index = Math.max(0, section);
   useInboxPolling();
   // Someone calling you while the site is open.
@@ -74,9 +99,9 @@ export function TabsLayout() {
         <div className="tabbar-inner">
           <span
             className="tabbar-indicator"
-            style={{ width: `calc((100% - 12px) / ${TABS.length})`, transform: `translateX(${index * 100}%)` }}
+            style={{ width: `calc((100% - 12px) / ${tabs.length})`, transform: `translateX(${index * 100}%)` }}
           />
-          {TABS.map((t, i) => {
+          {tabs.map((t, i) => {
             const on = i === section;
             return (
               <NavLink key={t.path} to={t.path} end={t.path === '/'} className={`tab press${on ? ' on' : ''}`} aria-label={t.label}

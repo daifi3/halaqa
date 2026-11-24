@@ -4,7 +4,8 @@ import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "halaqa")
-public record HalaqaProperties(String publicBaseUrl, LiveKit livekit, Storage storage, Auth auth, Recordings recordings) {
+public record HalaqaProperties(String publicBaseUrl, LiveKit livekit, Storage storage, Auth auth, Recordings recordings,
+                               Admin admin) {
     /** recordingEnabled: off where no Egress can write files (e.g. LiveKit Cloud without cloud storage). */
     public record LiveKit(String wsUrl, String apiUrl, String apiKey, String apiSecret, String egressOutputDir,
                           boolean recordingEnabled) {}
@@ -23,6 +24,12 @@ public record HalaqaProperties(String publicBaseUrl, LiveKit livekit, Storage st
         public boolean s3() { return s3Bucket != null && !s3Bucket.isBlank(); }
     }
 
-    /** How long an access token works before the app must refresh it, and how long a refresh token lasts. */
-    public record Auth(Duration accessTokenTtl, Duration refreshTokenTtl) {}
+    /**
+     * How long an access token works before the app must refresh it, and how long a refresh token lasts.
+     * publicSignUp: whether anyone can create an account. Off by default: Halaqa admins create accounts.
+     */
+    public record Auth(Duration accessTokenTtl, Duration refreshTokenTtl, boolean publicSignUp) {}
+
+    /** The first admin, created at startup when no admin exists yet (both values set). */
+    public record Admin(String email, String password, String name) {}
 }

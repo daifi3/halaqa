@@ -7,6 +7,7 @@ import { Avatar, delay, ToggleRow } from '@/components/ui/misc';
 import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
 import { api } from '@/lib/api';
+import { ROLES } from '@/lib/roles';
 import { enroll, authenticate, getBiometricSupport, methodLabel } from '@/lib/biometrics';
 import { config } from '@/lib/config';
 import { alert } from '@/lib/dialog';
@@ -51,7 +52,7 @@ export default function Profile() {
   const user = useMe();
   const updateUser = useSession((s) => s.updateUser);
   const navigate = useNavigate();
-  const tone = user.role === 'teacher' ? colors.teacher : colors.student;
+  const tone = ROLES[user.role].tone;
   const [uploading, setUploading] = useState(false);
   const biometric = useSecurityPrefs((s) => biometricRecordOf(s, user.id));
   const enableBiometric = useSecurityPrefs((s) => s.enableBiometric);
@@ -129,7 +130,7 @@ export default function Profile() {
       </div>
 
       <div className="a-down" style={{ ...delay(120), backgroundColor: colors.surface, borderRadius: radius.lg, padding: '0 16px' }}>
-        <Row icon="ribbon-outline" label="Role" value={user.role === 'teacher' ? 'Teacher' : 'Student'} />
+        <Row icon="ribbon-outline" label="Role" value={ROLES[user.role].label} />
         <div style={{ height: 1, backgroundColor: colors.line }} />
         <Row icon="server-outline" label="Data source" value={config.useMock ? 'Demo data' : 'Live server'} />
       </div>

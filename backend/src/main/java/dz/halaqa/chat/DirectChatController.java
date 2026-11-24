@@ -107,7 +107,7 @@ public class DirectChatController {
     @Transactional
     public ConversationDto open(@Valid @RequestBody OpenRequest req, @RequestAttribute(AuthInterceptor.USER_ATTR) User me) {
         if (req.userId().equals(me.getId())) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You can't chat with yourself");
-        User other = users.findById(req.userId())
+        User other = users.findById(req.userId()).filter(u -> !u.isDeleted())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "This person doesn't have a Halaqa account"));
         Conversation probe = new Conversation(me, other);
         Conversation c = conversations.findByUserAIdAndUserBId(probe.getUserA().getId(), probe.getUserB().getId())

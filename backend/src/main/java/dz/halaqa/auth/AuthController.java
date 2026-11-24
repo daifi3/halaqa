@@ -68,6 +68,12 @@ public class AuthController {
     @PostMapping("/sign-up")
     @Transactional
     public AuthResponse signUp(@Valid @RequestBody SignUpRequest req) {
+        if (!props.auth().publicSignUp()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Accounts are created by Halaqa. Request a demo on our website and we'll set yours up.");
+        }
+        // Nobody signs themselves up as staff.
+        if (req.role() == User.Role.admin) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose teacher or student");
         String email = req.email().trim().toLowerCase();
         if (users.findByEmailIgnoreCase(email).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "An account with this email already exists");
@@ -85,6 +91,10 @@ public class AuthController {
         if (!encoder.matches(req.password(), user.getPasswordHash())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password");
         }
+        // Only said after the right password, so it doesn't reveal which emails have (closed) accounts.
+        if (user.isDeleted()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This account has been closed. Contact Halaqa if you think this is a mistake.");
+        }
         return issueTokens(user);
     }
 
@@ -96,6 +106,7 @@ public class AuthController {
         if (current.isExpired()) throw sessionExpired();
         // Single use: when two refreshes race with the same token, only the first one wins.
         if (refreshTokens.consume(current.getToken()) == 0) throw sessionExpired();
+        if (current.getUser().isDeleted()) throw sessionExpired();
         return issueTokens(current.getUser());
     }
 

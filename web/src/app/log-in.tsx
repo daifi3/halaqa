@@ -70,8 +70,8 @@ export default function LogIn() {
 
         <div className="v a-down" style={{ ...delay(260), marginTop: 'auto', gap: 16 }}>
           <Button type="submit" title="Log in" loading={loading} disabled={!canSubmit} />
-          <Pressable onClick={() => navigate('/welcome', { replace: true, state })} style={{ alignSelf: 'center' }}>
-            <Text color={colors.muted}>New to Halaqa? <Text color={colors.primary} variant="bodyStrong">Create an account</Text></Text>
+          <Pressable onClick={() => navigate({ pathname: '/welcome', hash: '#demo' }, { state })} style={{ alignSelf: 'center' }}>
+            <Text color={colors.muted}>New to Halaqa? <Text color={colors.primary} variant="bodyStrong">Request a demo</Text></Text>
           </Pressable>
         </div>
       </div>

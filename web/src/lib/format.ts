@@ -69,3 +69,27 @@ export function timeAgo(iso: string, now = Date.now()) {
   if (h < 48) return 'yesterday';
   return formatDay(iso);
 }
+
+/** 3000 -> "3 000 DA" (no cents unless there are some). */
+export function formatMoney(amount: number, currency = 'DZD') {
+  const cents = Math.round(amount * 100) % 100 !== 0;
+  try {
+    return new Intl.NumberFormat('fr-DZ', {
+      style: 'currency', currency, minimumFractionDigits: cents ? 2 : 0, maximumFractionDigits: cents ? 2 : 0,
+    }).format(amount);
+  } catch {
+    return `${amount.toLocaleString()} ${currency}`;
+  }
+}
+
+/** "2026-12-24" (a calendar date, no time zone) -> "24 Dec 2026". */
+export function formatDate(day: string, opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' }) {
+  const [y, m, d] = day.split('-').map(Number) as [number, number, number];
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, opts);
+}
+
+/** Today as YYYY-MM-DD in local time. */
+export function todayIso() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}

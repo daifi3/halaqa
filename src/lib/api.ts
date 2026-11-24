@@ -177,6 +177,13 @@ async function fileForm(file: PickedFile, extra?: Record<string, string | undefi
 }
 
 /** Thrown when the access token expired and the refresh token can't renew it; the user has been signed out. */
+/**
+ * Lets the backend sit behind ngrok's free plan (see scripts/ngrok-backend.ps1): this header
+ * skips the "you are about to visit" page ngrok can put in front of browser traffic.
+ * Harmless anywhere else; the backend's CORS allows any request header.
+ */
+const TUNNEL_HEADERS = { 'ngrok-skip-browser-warning': '1' } as const;
+
 export class SessionExpiredError extends Error {
   constructor() {
     super('Your session has expired. Please sign in again.');
@@ -215,7 +222,7 @@ function refreshAccessToken(staleToken: string): Promise<string | null> {
     try {
       const res = await fetch(`${config.apiUrl}/auth/refresh`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
         body: JSON.stringify({ refreshToken }),
       });
       const current = useSession.getState();
@@ -244,6 +251,7 @@ class HttpApi implements Api {
       ...init,
       headers: {
         ...(isForm ? {} : { 'Content-Type': 'application/json' }),
+        ...TUNNEL_HEADERS,
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(init.headers ?? {}),
       },

@@ -553,6 +553,9 @@ a.store-badge:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(
   background: #3DDC84; border: 2px solid var(--bg);
 }
 
+/* Under the landing page's 64px sticky bar. */
+.app-prompt-card.below-nav, .app-prompt-bubble.below-nav { top: calc(max(env(safe-area-inset-top), 12px) + 64px); }
+
 @keyframes appPromptIn { from { opacity: 0; transform: translateY(-24px) scale(0.96); } to { opacity: 1; transform: none; } }
 @keyframes appPromptOut { to { opacity: 0; transform: scale(0.12); } }
 @keyframes appBubbleIn { from { opacity: 0; transform: scale(0.3); } to { opacity: 1; transform: none; } }
@@ -561,4 +564,61 @@ a.store-badge:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(
 @media (prefers-reduced-motion: reduce) {
   .app-prompt-card, .app-prompt-card.leaving, .app-prompt-bubble, .app-prompt-bubble::after { animation-duration: 1ms; }
 }
+
+/* ---------- Admin ---------- */
+.admin-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (min-width: 760px) { .admin-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.admin-contact {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--ink);
+  text-decoration: none; padding: 6px 10px; border-radius: 999px; background: var(--bg); max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+.admin-contact:hover { background: var(--surface-alt); }
+.admin-flow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+
+/* Admin users: list view, filters and pager */
+.admin-filters { display: flex; flex-direction: column; gap: 10px; }
+@media (min-width: 760px) { .admin-filters { flex-direction: row; align-items: center; justify-content: space-between; } }
+.admin-table {
+  display: flex; flex-direction: column; border-radius: 18px; overflow: hidden;
+  background: var(--surface); box-shadow: var(--shadow-card);
+}
+.admin-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px;
+  padding: 12px 14px; border-top: 1px solid var(--line);
+}
+.admin-row:first-child { border-top: 0; }
+.admin-head { padding-top: 10px; padding-bottom: 10px; background: var(--bg); }
+.admin-col-role, .admin-col-date { display: none; }
+@media (min-width: 760px) {
+  .admin-row { grid-template-columns: minmax(0, 2.2fr) minmax(110px, 0.8fr) minmax(110px, 0.8fr) auto; padding: 12px 18px; }
+  .admin-col-role, .admin-col-date { display: block; }
+}
+/* On phones the head row only has "Name", so hide it entirely. */
+@media (max-width: 759px) { .admin-head { display: none; } }
+.admin-pager {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
+}
+@media (max-width: 640px) { .admin-pager { flex-direction: column; } }
+.admin-select {
+  font: inherit; font-size: 14px; color: var(--ink); background: var(--surface); border: 1px solid var(--line);
+  border-radius: 10px; padding: 6px 10px; cursor: pointer;
+}
+
+/* Admin payments */
+.pay-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "who act" "standing act"; row-gap: 8px; }
+.pay-row > :nth-child(1) { grid-area: who; }
+.pay-row > :nth-child(2) { grid-area: standing; }
+.pay-row > :nth-child(4) { grid-area: act; }
+.pay-row.admin-head > :nth-child(2) { display: none; }
+@media (min-width: 760px) {
+  .pay-row {
+    grid-template-columns: minmax(0, 1.6fr) minmax(150px, 1.1fr) minmax(120px, 0.9fr) auto;
+    grid-template-areas: "who standing last act";
+  }
+  .pay-row > :nth-child(3) { grid-area: last; }
+  .pay-row.admin-head > :nth-child(2) { display: block; }
+}
+.payment-row { grid-template-columns: minmax(0, 1fr) auto; align-items: start; }
+.pay-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 420px) { .pay-facts { grid-template-columns: 1fr 1fr; } .pay-facts > :last-child { grid-column: span 2; } }

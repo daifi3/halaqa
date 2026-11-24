@@ -3,6 +3,8 @@ import { emitDemoChat } from './direct-chat';
 import { alert } from './dialog';
 import { attemptDeadline, examWindow, formatGrade, scoreAttempt } from './exam';
 import type {
+  AdminStats, AdminUser, CreatedUser, UserPage, UserQuery, BillingAccount, BillingAccountDetail, BillingQuery,
+  NewPaymentInput, Paged, Payment, PaymentSummary, Standing, DemoRequest, DemoRequestInput, DemoRequestStatus, NewUserInput,
   AuthSession, Call, Contact, ContactInput, Conversation, Course, DirectMessage, Person, Exam, ExamAnswer, ExamAttempt, Homework, HomeworkSubmission, JoinCredentials, NewCourseInput, NewExamInput,
   NewRoomInput, NewVaultDocumentInput, PickedFile, Recording, Role, Room, RoomStudent, RsvpStatus, StoredChatMessage,
   StoredExam, SubmitHomeworkInput, User, VaultDocument, AppNotification, Inbox,
@@ -20,6 +22,30 @@ export interface Api {
   uploadAvatar(file: PickedFile): Promise<User>;
   removeAvatar(): Promise<User>;
   changePassword(input: { currentPassword: string; newPassword: string }): Promise<void>;
+
+  // Landing page (no account needed)
+  requestDemo(input: DemoRequestInput): Promise<void>;
+
+  // Admin
+  getAdminStats(): Promise<AdminStats>;
+  listUsers(query?: UserQuery): Promise<UserPage>;
+  createUser(input: NewUserInput): Promise<CreatedUser>;
+  assignRole(userId: string, role: Role): Promise<AdminUser>;
+  /** Signs the user out everywhere; returns the new temporary password. */
+  resetUserPassword(userId: string): Promise<string>;
+  /** Marks the account deleted (nothing is erased) and signs it out everywhere. */
+  deleteUser(userId: string): Promise<AdminUser>;
+  restoreUser(userId: string): Promise<AdminUser>;
+  getPaymentSummary(role?: Role): Promise<PaymentSummary>;
+  listBillingAccounts(query?: BillingQuery): Promise<Paged<BillingAccount>>;
+  getBillingAccount(userId: string): Promise<BillingAccountDetail>;
+  /** Every payment (or one account's), newest first, voided ones included. */
+  listPayments(query?: { userId?: string; page?: number; size?: number }): Promise<Paged<Payment>>;
+  recordPayment(input: NewPaymentInput): Promise<Payment>;
+  /** Cancels a mistaken payment; it stays in the history. */
+  voidPayment(id: string, reason?: string): Promise<Payment>;
+  listDemoRequests(): Promise<DemoRequest[]>;
+  updateDemoRequest(id: string, patch: { status?: DemoRequestStatus; adminNote?: string }): Promise<DemoRequest>;
   listRooms(): Promise<Room[]>;
   getRoom(id: string): Promise<Room>;
   createRoom(input: NewRoomInput): Promise<Room>;
@@ -161,6 +187,43 @@ async function fileForm(file: PickedFile, extra?: Record<string, string | undefi
 }
 
 /** Thrown when the access token expired and the refresh token can't renew it; the user has been signed out. */
+/**
+ * Lets the backend sit behind ngrok's free plan (see scripts/ngrok-backend.ps1): this header
+ * skips the "you are about to visit" page ngrok can put in front of browser traffic.
+ * Harmless anywhere else; the backend's CORS allows any request header.
+ */
+const TUNNEL_HEADERS = { 'ngrok-skip-browser-warning': '1' } as const;
+
+/** YYYY-MM-DD of a local date. */
+function isoDate(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function addDays(day: string, n: number) {
+  const [y, m, d] = day.split('-').map(Number) as [number, number, number];
+  return isoDate(new Date(y, m - 1, d + n));
+}
+
+/** Same day n months later, clamped to the month's end (31 Jan + 1 month = 28/29 Feb), like java.time. */
+function addMonths(day: string, n: number) {
+  const [y, m, d] = day.split('-').map(Number) as [number, number, number];
+  const last = new Date(y, m - 1 + n + 1, 0).getDate();
+  return isoDate(new Date(y, m - 1 + n, Math.min(d, last)));
+}
+
+function paged<T>(all: T[], page: number, size: number, counts: Record<string, number>): Paged<T> {
+  const pageSize = Math.max(1, Math.min(size, 100));
+  return { items: all.slice(page * pageSize, (page + 1) * pageSize), total: all.length, page, size: pageSize, totalPages: Math.ceil(all.length / pageSize), counts };
+}
+
+/** "?a=1&b=x" from the set values ("" when none). */
+function queryString(query: object) {
+  const params = new URLSearchParams();
+  for (const [k, v] of Object.entries(query)) if (v !== undefined && v !== null && v !== '') params.set(k, String(v));
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
 export class SessionExpiredError extends Error {
   constructor() {
     super('Your session has expired. Please sign in again.');
@@ -168,7 +231,7 @@ export class SessionExpiredError extends Error {
 }
 
 /** Endpoints that don't use the access token: a 401 there means wrong credentials, not an expired session. */
-const PUBLIC_AUTH_PATHS = ['/auth/sign-up', '/auth/sign-in', '/auth/refresh', '/auth/sign-out'];
+const PUBLIC_AUTH_PATHS = ['/auth/sign-up', '/auth/sign-in', '/auth/refresh', '/auth/sign-out', '/demo-requests'];
 
 /** Signs out once (concurrent failing requests all land here) and tells the user why. */
 function expireSession() {
@@ -199,7 +262,7 @@ function refreshAccessToken(staleToken: string): Promise<string | null> {
     try {
       const res = await fetch(`${config.apiUrl}/auth/refresh`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
         body: JSON.stringify({ refreshToken }),
       });
       const current = useSession.getState();
@@ -228,6 +291,7 @@ class HttpApi implements Api {
       ...init,
       headers: {
         ...(isForm ? {} : { 'Content-Type': 'application/json' }),
+        ...TUNNEL_HEADERS,
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(init.headers ?? {}),
       },
@@ -256,6 +320,43 @@ class HttpApi implements Api {
   }
   logIn(input: { email: string; password: string }) {
     return this.request<AuthSession>('/auth/sign-in', { method: 'POST', body: JSON.stringify(input) });
+  }
+  async requestDemo(input: DemoRequestInput) {
+    await this.request('/demo-requests', { method: 'POST', body: JSON.stringify(input) });
+  }
+  getAdminStats() { return this.request<AdminStats>('/admin/stats'); }
+  listUsers(query: UserQuery = {}) {
+    return this.request<UserPage>(`/admin/users${queryString(query)}`);
+  }
+  createUser(input: NewUserInput) {
+    return this.request<CreatedUser>('/admin/users', { method: 'POST', body: JSON.stringify(input) });
+  }
+  assignRole(userId: string, role: Role) {
+    return this.request<AdminUser>(`/admin/users/${userId}/role`, { method: 'PATCH', body: JSON.stringify({ role }) });
+  }
+  async resetUserPassword(userId: string) {
+    const res = await this.request<{ temporaryPassword: string }>(`/admin/users/${userId}/reset-password`, { method: 'POST' });
+    return res.temporaryPassword;
+  }
+  deleteUser(userId: string) { return this.request<AdminUser>(`/admin/users/${userId}`, { method: 'DELETE' }); }
+  restoreUser(userId: string) { return this.request<AdminUser>(`/admin/users/${userId}/restore`, { method: 'POST' }); }
+  getPaymentSummary(role: Role = 'teacher') { return this.request<PaymentSummary>(`/admin/payments/summary?role=${role}`); }
+  listBillingAccounts(query: BillingQuery = {}) {
+    return this.request<Paged<BillingAccount>>(`/admin/payments/accounts${queryString(query)}`);
+  }
+  getBillingAccount(userId: string) { return this.request<BillingAccountDetail>(`/admin/payments/accounts/${userId}`); }
+  listPayments(query: { userId?: string; page?: number; size?: number } = {}) {
+    return this.request<Paged<Payment>>(`/admin/payments${queryString(query)}`);
+  }
+  recordPayment(input: NewPaymentInput) {
+    return this.request<Payment>('/admin/payments', { method: 'POST', body: JSON.stringify(input) });
+  }
+  voidPayment(id: string, reason?: string) {
+    return this.request<Payment>(`/admin/payments/${id}/void`, { method: 'POST', body: JSON.stringify({ reason }) });
+  }
+  listDemoRequests() { return this.request<DemoRequest[]>('/admin/demo-requests'); }
+  updateDemoRequest(id: string, patch: { status?: DemoRequestStatus; adminNote?: string }) {
+    return this.request<DemoRequest>(`/admin/demo-requests/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
   }
   async signOut() {
     const { token, refreshToken } = useSession.getState();
@@ -508,6 +609,26 @@ class MockApi implements Api {
     { id: 's-demo', name: 'Yasmine Bensalem', email: 'student@demo.dz', role: 'student', password: 'demo1234' },
     { id: 's-karim', name: 'Karim Haddad', email: 'karim.h@demo.dz', role: 'student', password: 'demo1234' },
     { id: 's-lina', name: 'Lina Mansouri', email: 'lina.m@demo.dz', role: 'student', password: 'demo1234' },
+    { id: 'a-demo', name: 'Halaqa admin', email: 'admin@demo.dz', role: 'admin', password: 'demo1234' },
+  ];
+
+  /** When each account was created (the admin's user list sorts by it). */
+  private accountCreated: Record<string, string> = {};
+  /** id -> when an admin deleted the account */
+  private accountDeleted: Record<string, string> = {};
+  private payments: Payment[] = [];
+
+  private demoRequests: DemoRequest[] = [
+    {
+      id: 'dr1', name: 'Sara Belkacem', email: 'sara.b@lycee-oran.dz', phone: '+213 555 12 34 56', organization: 'Lycée Pasteur, Oran',
+      message: 'We have 6 maths teachers and would like live classes for terminale students.', status: 'new', adminNote: null,
+      user: null, createdAt: inHours(-5), updatedAt: inHours(-5),
+    },
+    {
+      id: 'dr2', name: 'Yacine Rahmani', email: 'y.rahmani@gmail.com', phone: null, organization: null,
+      message: 'Private tutor, physics.', status: 'awaiting_payment', adminNote: 'Sent the offer on WhatsApp.', user: null,
+      createdAt: inHours(-50), updatedAt: inHours(-20),
+    },
   ];
 
   private recordings: Recording[] = [
@@ -579,12 +700,237 @@ class MockApi implements Api {
     const email = input.email.trim().toLowerCase();
     const account = this.accounts.find((a) => a.email === email);
     if (!account || account.password !== input.password) throw new Error('Invalid email or password');
+    if (this.accountDeleted[account.id]) throw new Error('This account has been closed. Contact Halaqa if you think this is a mistake.');
     const user: User = { id: account.id, name: account.name, email: account.email, role: account.role, avatarUrl: account.avatarUrl ?? null };
     return { user, token: `mock-token-${user.id}`, refreshToken: `mock-refresh-${user.id}` };
   }
 
   async signOut() {
     useSession.getState().signOut();
+  }
+
+  private requireAdmin() {
+    if (this.me().role !== 'admin') throw new Error('Only Halaqa admins can do this');
+  }
+
+  private adminView(a: User & { password: string }): AdminUser {
+    return {
+      id: a.id, name: a.name, email: a.email, role: a.role, avatarUrl: a.avatarUrl ?? null,
+      createdAt: this.accountCreated[a.id] ?? inHours(-24 * 30),
+      status: this.accountDeleted[a.id] ? 'deleted' : 'active', deletedAt: this.accountDeleted[a.id] ?? null,
+    };
+  }
+
+  private newPassword() {
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    return Array.from({ length: 10 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
+  }
+
+  async requestDemo(input: DemoRequestInput) {
+    await wait(700);
+    if (input.website) return;
+    const now = new Date().toISOString();
+    this.demoRequests.unshift({
+      id: uid(), name: input.name.trim(), email: input.email.trim().toLowerCase(), phone: input.phone.trim() || null,
+      organization: input.organization.trim() || null, message: input.message.trim() || null, status: 'new',
+      adminNote: null, user: null, createdAt: now, updatedAt: now,
+    });
+  }
+
+  async getAdminStats() {
+    await wait(200);
+    this.requireAdmin();
+    const count = (r: Role) => this.accounts.filter((a) => a.role === r && !this.accountDeleted[a.id]).length;
+    return {
+      teachers: count('teacher'), students: count('student'), admins: count('admin'),
+      newDemoRequests: this.demoRequests.filter((d) => d.status === 'new').length,
+    };
+  }
+
+  async listUsers({ q = '', role, status = 'active', page = 0, size = 20 }: UserQuery = {}): Promise<UserPage> {
+    await wait();
+    this.requireAdmin();
+    const text = q.trim().toLowerCase();
+    const base = this.accounts.map((a) => this.adminView(a))
+      .filter((u) => u.status === status && (!text || u.name.toLowerCase().includes(text) || u.email.includes(text)))
+      .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+    const matching = role ? base.filter((u) => u.role === role) : base;
+    const n = (r: Role) => base.filter((u) => u.role === r).length;
+    const pageSize = Math.max(1, Math.min(size, 100));
+    return {
+      items: matching.slice(page * pageSize, (page + 1) * pageSize), total: matching.length, page, size: pageSize,
+      totalPages: Math.ceil(matching.length / pageSize), counts: { all: base.length, teacher: n('teacher'), student: n('student'), admin: n('admin') },
+    };
+  }
+
+  async createUser(input: NewUserInput) {
+    await wait(600);
+    this.requireAdmin();
+    const email = input.email.trim().toLowerCase();
+    const existing = this.accounts.find((a) => a.email === email);
+    if (existing) {
+      throw new Error(this.accountDeleted[existing.id]
+        ? 'This email belongs to a deleted account. Restore it from the Deleted list instead.'
+        : 'An account with this email already exists');
+    }
+    const password = input.password?.trim() || this.newPassword();
+    if (password.length < 6) throw new Error('The password needs at least 6 characters');
+    const account = { id: uid(), name: input.name.trim(), email, role: input.role, avatarUrl: null, password };
+    this.accounts.push(account);
+    this.accountCreated[account.id] = new Date().toISOString();
+    const user = this.adminView(account);
+    const request = input.demoRequestId ? this.demoRequests.find((d) => d.id === input.demoRequestId) : undefined;
+    if (request) Object.assign(request, { user, status: 'account_created', updatedAt: new Date().toISOString() });
+    return { user, temporaryPassword: password };
+  }
+
+  async assignRole(userId: string, role: Role) {
+    await wait(350);
+    this.requireAdmin();
+    const account = this.accounts.find((a) => a.id === userId);
+    if (!account) throw new Error('User not found');
+    if (account.id === this.me().id && role !== 'admin') throw new Error("You can't remove your own admin role. Ask another admin.");
+    account.role = role;
+    return this.adminView(account);
+  }
+
+  async resetUserPassword(userId: string) {
+    await wait(400);
+    this.requireAdmin();
+    const account = this.accounts.find((a) => a.id === userId);
+    if (!account) throw new Error('User not found');
+    account.password = this.newPassword();
+    return account.password;
+  }
+
+  async deleteUser(userId: string) {
+    await wait(400);
+    this.requireAdmin();
+    const account = this.accounts.find((a) => a.id === userId);
+    if (!account) throw new Error('User not found');
+    if (account.id === this.me().id) throw new Error("You can't delete your own account. Ask another admin.");
+    this.accountDeleted[account.id] ??= new Date().toISOString();
+    return this.adminView(account);
+  }
+
+  /** paid-until of an account: the latest end among its recorded payments. */
+  private paidUntil(userId: string) {
+    return this.payments.filter((p) => p.user.id === userId && p.status === 'recorded')
+      .reduce<string | null>((max, p) => (!max || p.periodEnd > max ? p.periodEnd : max), null);
+  }
+
+  private billingAccount(a: User & { password: string }): BillingAccount {
+    const until = this.paidUntil(a.id);
+    const today = isoDate(new Date());
+    const daysLeft = until ? Math.round((Date.parse(until) - Date.parse(today)) / 86_400_000) : null;
+    const standing: Standing = daysLeft === null ? 'never' : daysLeft < 0 ? 'overdue' : daysLeft <= 7 ? 'due_soon' : 'paid';
+    const last = this.payments.filter((p) => p.user.id === a.id && p.status === 'recorded')
+      .sort((x, y) => (y.paidOn + y.createdAt).localeCompare(x.paidOn + x.createdAt))[0] ?? null;
+    return { user: this.adminView(a), paidUntil: until, standing, daysLeft, lastPayment: last };
+  }
+
+  async getPaymentSummary(role: Role = 'teacher') {
+    await wait(200);
+    this.requireAdmin();
+    const accounts = this.accounts.filter((a) => a.role === role && !this.accountDeleted[a.id]).map((a) => this.billingAccount(a));
+    const today = isoDate(new Date());
+    const sum = (from: string) => this.payments
+      .filter((p) => p.status === 'recorded' && p.user.role === role && p.paidOn >= from && p.paidOn <= today)
+      .reduce((t, p) => t + p.amount, 0);
+    const n = (s: Standing) => accounts.filter((x) => x.standing === s).length;
+    return {
+      currency: 'DZD', collectedThisMonth: sum(today.slice(0, 8) + '01'), collectedThisYear: sum(today.slice(0, 5) + '01-01'),
+      paid: n('paid'), dueSoon: n('due_soon'), overdue: n('overdue'), never: n('never'),
+    };
+  }
+
+  async listBillingAccounts({ role = 'teacher', standing, q = '', page = 0, size = 20 }: BillingQuery = {}) {
+    await wait();
+    this.requireAdmin();
+    const text = q.trim().toLowerCase();
+    const base = this.accounts
+      .filter((a) => a.role === role && !this.accountDeleted[a.id] && (!text || a.name.toLowerCase().includes(text) || a.email.includes(text)))
+      .map((a) => this.billingAccount(a))
+      .sort((x, y) => (x.paidUntil ?? '9999').localeCompare(y.paidUntil ?? '9999') || x.user.name.localeCompare(y.user.name));
+    const matching = standing ? base.filter((x) => x.standing === standing) : base;
+    const n = (s: Standing) => base.filter((x) => x.standing === s).length;
+    return paged(matching, page, size, { all: base.length, paid: n('paid'), due_soon: n('due_soon'), overdue: n('overdue'), never: n('never') });
+  }
+
+  async getBillingAccount(userId: string) {
+    await wait();
+    this.requireAdmin();
+    const account = this.accounts.find((a) => a.id === userId);
+    if (!account) throw new Error('User not found');
+    const totalPaid = this.payments.filter((p) => p.user.id === userId && p.status === 'recorded').reduce((t, p) => t + p.amount, 0);
+    return { account: this.billingAccount(account), totalPaid, currency: 'DZD' };
+  }
+
+  async listPayments({ userId, page = 0, size = 20 }: { userId?: string; page?: number; size?: number } = {}) {
+    await wait();
+    this.requireAdmin();
+    const all = this.payments.filter((p) => !userId || p.user.id === userId)
+      .sort((x, y) => (y.paidOn + y.createdAt).localeCompare(x.paidOn + x.createdAt));
+    return paged(all.map((p) => ({ ...p })), page, size, {});
+  }
+
+  async recordPayment(input: NewPaymentInput) {
+    await wait(500);
+    this.requireAdmin();
+    const account = this.accounts.find((a) => a.id === input.userId);
+    if (!account) throw new Error('User not found');
+    if (this.accountDeleted[account.id]) throw new Error('This account is deleted. Restore it first.');
+    const today = isoDate(new Date());
+    const paidOn = input.paidOn || today;
+    if (paidOn > today) throw new Error("The payment date can't be in the future");
+    if (!(input.amount > 0)) throw new Error('Enter an amount');
+    const current = this.paidUntil(account.id);
+    const start = current && current >= paidOn ? addDays(current, 1) : paidOn;
+    const me = this.me();
+    const payment: Payment = {
+      id: uid(), user: this.adminView(account), amount: Math.round(input.amount * 100) / 100, currency: 'DZD', months: input.months,
+      periodStart: start, periodEnd: addDays(addMonths(start, input.months), -1), method: input.method,
+      reference: input.reference?.trim() || null, note: input.note?.trim() || null, paidOn,
+      recordedBy: { id: me.id, name: me.name }, status: 'recorded', voidReason: null, voidedAt: null, createdAt: new Date().toISOString(),
+    };
+    this.payments.push(payment);
+    return { ...payment };
+  }
+
+  async voidPayment(id: string, reason?: string) {
+    await wait(350);
+    this.requireAdmin();
+    const payment = this.payments.find((p) => p.id === id);
+    if (!payment) throw new Error('Payment not found');
+    if (payment.status === 'void') throw new Error('This payment is already void');
+    Object.assign(payment, { status: 'void', voidReason: reason?.trim() || null, voidedAt: new Date().toISOString() });
+    return { ...payment };
+  }
+
+  async restoreUser(userId: string) {
+    await wait(400);
+    this.requireAdmin();
+    const account = this.accounts.find((a) => a.id === userId);
+    if (!account) throw new Error('User not found');
+    delete this.accountDeleted[account.id];
+    return this.adminView(account);
+  }
+
+  async listDemoRequests() {
+    await wait();
+    this.requireAdmin();
+    return this.demoRequests.map((d) => ({ ...d }));
+  }
+
+  async updateDemoRequest(id: string, patch: { status?: DemoRequestStatus; adminNote?: string }) {
+    await wait(300);
+    this.requireAdmin();
+    const request = this.demoRequests.find((d) => d.id === id);
+    if (!request) throw new Error('Request not found');
+    if (patch.status) request.status = patch.status;
+    if (patch.adminNote !== undefined) request.adminNote = patch.adminNote.trim() || null;
+    request.updatedAt = new Date().toISOString();
+    return { ...request };
   }
 
   async uploadAvatar(file: PickedFile) {

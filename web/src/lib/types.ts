@@ -1,4 +1,5 @@
-export type Role = 'teacher' | 'student';
+/** admin: Halaqa staff, who create accounts and assign roles (there is no public sign-up). */
+export type Role = 'teacher' | 'student' | 'admin';
 
 export interface User {
   id: string;
@@ -390,4 +391,180 @@ export interface Conversation {
   otherReadAt: string | null;
   lastMessageAt: string | null;
   createdAt: string;
+}
+
+/* ---------- Admin ---------- */
+
+/** An account as an admin sees it. */
+export interface AdminUser {
+  id: string;
+  name: string;
+  email: string;
+  role: Role;
+  avatarUrl?: string | null;
+  /** ISO date-time */
+  createdAt: string;
+  /** deleted: closed by an admin. Kept with its history; can't sign in until restored. */
+  status: UserStatus;
+  /** ISO date-time; set while deleted */
+  deletedAt?: string | null;
+}
+
+export type UserStatus = 'active' | 'deleted';
+
+export interface UserQuery {
+  q?: string;
+  role?: Role;
+  /** Default active. */
+  status?: UserStatus;
+  /** 0-based */
+  page?: number;
+  size?: number;
+}
+
+/** One page of users. counts: matches per role for the same search and status, ignoring the role filter. */
+export interface UserPage {
+  items: AdminUser[];
+  total: number;
+  page: number;
+  size: number;
+  totalPages: number;
+  counts: Record<'all' | Role, number>;
+}
+
+export interface NewUserInput {
+  name: string;
+  email: string;
+  role: Role;
+  /** Empty: the server generates one. */
+  password?: string;
+  /** The demo request this account answers; marks it "account created". */
+  demoRequestId?: string;
+}
+
+/** temporaryPassword is shown once, for the admin to pass on. */
+export interface CreatedUser {
+  user: AdminUser;
+  temporaryPassword: string;
+}
+
+export interface AdminStats {
+  teachers: number;
+  students: number;
+  admins: number;
+  newDemoRequests: number;
+}
+
+/** Follow-up steps for a demo request. Payment happens outside the app, then the admin creates the account. */
+export type DemoRequestStatus = 'new' | 'contacted' | 'awaiting_payment' | 'paid' | 'account_created' | 'declined';
+
+export interface DemoRequest {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  organization: string | null;
+  message: string | null;
+  status: DemoRequestStatus;
+  adminNote: string | null;
+  /** The account created from it, once there is one. */
+  user: AdminUser | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** What the landing page's form sends. */
+export interface DemoRequestInput {
+  name: string;
+  email: string;
+  phone: string;
+  organization: string;
+  message: string;
+  /** Hidden honeypot: people leave it empty, bots don't. */
+  website?: string;
+}
+
+/* ---------- Admin: payments ---------- */
+
+/** How the money reached Halaqa. Payment always happens outside the app; the admin records it. */
+export type PaymentMethod = 'cash' | 'ccp' | 'baridimob' | 'bank_transfer' | 'card' | 'other';
+
+/** paid: covered. due_soon: ends within 7 days. overdue: paid-until has passed. never: no payment yet. */
+export type Standing = 'paid' | 'due_soon' | 'overdue' | 'never';
+
+export interface Payment {
+  id: string;
+  user: AdminUser;
+  amount: number;
+  currency: string;
+  months: number;
+  /** YYYY-MM-DD, inclusive */
+  periodStart: string;
+  periodEnd: string;
+  method: PaymentMethod;
+  reference?: string | null;
+  note?: string | null;
+  /** YYYY-MM-DD */
+  paidOn: string;
+  recordedBy: { id: string; name: string };
+  /** void: cancelled by an admin (kept in the history, doesn't count). */
+  status: 'recorded' | 'void';
+  voidReason?: string | null;
+  voidedAt?: string | null;
+  createdAt: string;
+}
+
+export interface BillingAccount {
+  user: AdminUser;
+  /** YYYY-MM-DD; null = never paid */
+  paidUntil: string | null;
+  standing: Standing;
+  /** Days until paidUntil; negative when overdue, null when never paid. */
+  daysLeft: number | null;
+  lastPayment: Payment | null;
+}
+
+export interface BillingAccountDetail {
+  account: BillingAccount;
+  totalPaid: number;
+  currency: string;
+}
+
+export interface PaymentSummary {
+  currency: string;
+  collectedThisMonth: number;
+  collectedThisYear: number;
+  paid: number;
+  dueSoon: number;
+  overdue: number;
+  never: number;
+}
+
+/** A page of results (page is 0-based). counts: per-filter totals where the list has filters. */
+export interface Paged<T> {
+  items: T[];
+  total: number;
+  page: number;
+  size: number;
+  totalPages: number;
+  counts: Record<string, number>;
+}
+
+export interface BillingQuery {
+  role?: Role;
+  standing?: Standing;
+  q?: string;
+  page?: number;
+  size?: number;
+}
+
+export interface NewPaymentInput {
+  userId: string;
+  amount: number;
+  months: number;
+  method: PaymentMethod;
+  reference?: string;
+  note?: string;
+  /** YYYY-MM-DD; default today */
+  paidOn?: string;
 }

@@ -16,7 +16,8 @@ public class AuthInterceptor implements HandlerInterceptor, WebMvcConfigurer {
 
     /** API endpoints that work without a token. The OpenAPI docs read this too, so they can't drift apart. */
     public static final List<String> PUBLIC_PATHS = List.of(
-            "/api/auth/sign-up", "/api/auth/sign-in", "/api/auth/refresh", "/api/auth/sign-out", "/api/livekit/webhook");
+            "/api/auth/sign-up", "/api/auth/sign-in", "/api/auth/refresh", "/api/auth/sign-out", "/api/livekit/webhook",
+            "/api/demo-requests");
 
     private final AuthRepositories.Tokens tokens;
 
@@ -32,7 +33,8 @@ public class AuthInterceptor implements HandlerInterceptor, WebMvcConfigurer {
         if (header != null && header.startsWith("Bearer ")) {
             var token = tokens.findById(header.substring(7));
             // An expired token gets the same 401 as an unknown one; the app then calls /api/auth/refresh.
-            if (token.isPresent() && !token.get().isExpired()) {
+            // A deleted account's tokens are revoked, but check anyway in case one slipped through.
+            if (token.isPresent() && !token.get().isExpired() && !token.get().getUser().isDeleted()) {
                 req.setAttribute(USER_ATTR, token.get().getUser());
                 return true;
             }

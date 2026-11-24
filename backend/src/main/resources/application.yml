@@ -62,6 +62,14 @@ halaqa:
     # Once the refresh token expires too, the user has to sign in again.
     access-token-ttl: ${ACCESS_TOKEN_TTL:15m}
     refresh-token-ttl: ${REFRESH_TOKEN_TTL:30d}
+    # Off: accounts are created by a Halaqa admin (teachers request a demo on the landing page).
+    public-sign-up: ${PUBLIC_SIGN_UP:false}
+  # The first admin. Created at startup if there is no admin yet; an existing account with this
+  # email is promoted instead (its password is kept). Remove the password once you've signed in.
+  admin:
+    email: ${ADMIN_EMAIL:}
+    password: ${ADMIN_PASSWORD:}
+    name: ${ADMIN_NAME:Halaqa admin}
   livekit:
     # URL the *app* connects to (websocket)
     ws-url: wss://halaqa-087jcbgn.livekit.cloud

@@ -21,7 +21,9 @@ function markSeen() {
  * a "Get the mobile app" card that stays for 10 seconds, then shrinks into a bubble in the
  * top-right corner. Tapping the bubble brings the card (and its download buttons) back.
  */
-export function AppDownloadPrompt() {
+export function AppDownloadPrompt({ belowNav = false }: { belowNav?: boolean } = {}) {
+  /** On pages with a sticky top bar (the landing page), sit under it instead of over it. */
+  const offset = belowNav ? ' below-nav' : '';
   const [mode, setMode] = useState<Mode>(() => (seen() ? 'bubble' : 'card'));
   // Opened from the bubble: no countdown, it stays until closed.
   const [manual, setManual] = useState(false);
@@ -42,7 +44,7 @@ export function AppDownloadPrompt() {
     return (
       <button
         type="button"
-        className="app-prompt-bubble"
+        className={`app-prompt-bubble${offset}`}
         aria-label="Get the mobile app"
         aria-expanded={false}
         onClick={() => { setManual(true); setMode('card'); }}
@@ -55,7 +57,7 @@ export function AppDownloadPrompt() {
 
   return (
     <div
-      className={`app-prompt-card${mode === 'leaving' ? ' leaving' : ''}`}
+      className={`app-prompt-card${offset}${mode === 'leaving' ? ' leaving' : ''}`}
       role="dialog"
       aria-label="Get the mobile app"
       onAnimationEnd={(e) => { if (e.animationName === 'appPromptOut') setMode('bubble'); }}

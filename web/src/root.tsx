@@ -11,9 +11,8 @@ import Exams from './app/tabs/exams';
 import Recordings from './app/tabs/recordings';
 import Contacts from './app/tabs/contacts';
 import Profile from './app/tabs/profile';
-import Welcome from './app/welcome';
+import Landing from './app/landing';
 import LogIn from './app/log-in';
-import SignUp from './app/sign-up';
 
 // Every other screen loads on first visit, so the first page stays light.
 const RoomDetails = lazy(() => import('./app/room/details'));
@@ -42,21 +41,58 @@ const AttemptDetails = lazy(() => import('./app/exam/attempt'));
 const ContactDetails = lazy(() => import('./app/contact/details'));
 const EditContact = lazy(() => import('./app/contact/edit'));
 const CallPage = lazy(() => import('./app/call'));
+const AdminUsers = lazy(() => import('./app/admin/users'));
+const NewUser = lazy(() => import('./app/admin/new-user'));
+const DemoRequests = lazy(() => import('./app/admin/requests'));
+const Payments = lazy(() => import('./app/admin/payments'));
+const RecordPayment = lazy(() => import('./app/admin/record-payment'));
+const PaymentAccount = lazy(() => import('./app/admin/payment-account'));
 
-/** Signed-in screens. A link opened while signed out (e.g. a join QR) comes back here after signing in. */
+/** Set once someone has signed in on this browser, so signing out leads back to log-in rather than the landing page. */
+const KNOWN_USER_KEY = 'halaqa.knownUser';
+
+function rememberKnownUser() {
+  try { localStorage.setItem(KNOWN_USER_KEY, '1'); } catch { /* storage blocked: first-visit behaviour */ }
+}
+
+function isKnownUser() {
+  try { return localStorage.getItem(KNOWN_USER_KEY) === '1'; } catch { return false; }
+}
+
+/**
+ * Signed-in screens. A link opened while signed out (e.g. a join QR) comes back here after signing in.
+ * Signed out: people who have used Halaqa here go to log-in; first-time visitors see the landing page.
+ */
 function Protected({ children }: { children: ReactNode }) {
   const signedIn = useSession((s) => !!s.user);
   const location = useLocation();
-  if (!signedIn) return <Navigate to="/welcome" replace state={{ from: location.pathname + location.search }} />;
+  if (signedIn) {
+    rememberKnownUser();
+    return children;
+  }
+  const to = isKnownUser() ? '/log-in' : '/welcome';
+  return <Navigate to={to} replace state={{ from: location.pathname + location.search }} />;
+}
+
+/** Admin screens. Anyone else goes home. */
+function AdminOnly({ children }: { children: ReactNode }) {
+  const admin = useSession((s) => s.user?.role === 'admin');
+  if (!admin) return <Navigate to="/" replace />;
   return children;
 }
 
-/** Welcome, sign-up and log-in. Signing in moves on to where the user was headed. */
+/** Home is the admin's user list; everyone else gets their classes. */
+function HomeFor() {
+  const admin = useSession((s) => s.user?.role === 'admin');
+  return admin ? <Navigate to="/admin/users" replace /> : <Home />;
+}
+
+/** The landing page and log-in. Signing in moves on to where the user was headed. */
 function GuestOnly({ children }: { children: ReactNode }) {
   const signedIn = useSession((s) => !!s.user);
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from;
-  if (signedIn) return <Navigate to={from && from !== '/welcome' ? from : '/'} replace />;
+  if (signedIn) return <Navigate to={from && from !== '/welcome' && from !== '/log-in' ? from : '/'} replace />;
   return children;
 }
 
@@ -84,13 +120,14 @@ function Shell() {
 const router = createBrowserRouter(
   createRoutesFromElements(
     <Route element={<Shell />}>
-      <Route path="/welcome" element={<GuestOnly><Welcome /></GuestOnly>} />
-      <Route path="/sign-up" element={<GuestOnly><SignUp /></GuestOnly>} />
+      <Route path="/welcome" element={<GuestOnly><Landing /></GuestOnly>} />
+      {/* No public sign-up: accounts are created by a Halaqa admin. Old links land on the demo form. */}
+      <Route path="/sign-up" element={<Navigate to={{ pathname: '/welcome', hash: '#demo' }} replace />} />
       <Route path="/log-in" element={<GuestOnly><LogIn /></GuestOnly>} />
 
       {/* The signed-in app: the tab bar (phones) or the sidebar (desktop) around each page. */}
       <Route element={<Protected><TabsLayout /></Protected>}>
-        <Route index element={<Home />} />
+        <Route index element={<HomeFor />} />
         <Route path="courses" element={<Courses />} />
         <Route path="exams" element={<Exams />} />
         <Route path="recordings" element={<Recordings />} />
@@ -117,6 +154,13 @@ const router = createBrowserRouter(
         <Route path="/exam/:id" element={<ExamDetails />} />
         <Route path="/contact/edit" element={<EditContact />} />
         <Route path="/contact/:id" element={<ContactDetails />} />
+
+        <Route path="/admin/users" element={<AdminOnly><AdminUsers /></AdminOnly>} />
+        <Route path="/admin/users/new" element={<AdminOnly><NewUser /></AdminOnly>} />
+        <Route path="/admin/requests" element={<AdminOnly><DemoRequests /></AdminOnly>} />
+        <Route path="/admin/payments" element={<AdminOnly><Payments /></AdminOnly>} />
+        <Route path="/admin/payments/record" element={<AdminOnly><RecordPayment /></AdminOnly>} />
+        <Route path="/admin/payments/account/:userId" element={<AdminOnly><PaymentAccount /></AdminOnly>} />
       </Route>
 
       {/* Full-window screens: the live class, taking an exam, the camera, players and viewers. */}
